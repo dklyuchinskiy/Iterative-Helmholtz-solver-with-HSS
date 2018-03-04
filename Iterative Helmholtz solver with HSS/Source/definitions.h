@@ -92,6 +92,8 @@ typedef struct list qlist;
 
 #define FULL_SVD
 
+//#define DIM_3D
+
 //#define COL_UPDATE
 //#define COL_ADD
 

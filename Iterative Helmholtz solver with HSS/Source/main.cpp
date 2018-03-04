@@ -31,6 +31,7 @@ in sparse CSR format to save memory.
 
 *************************************************/
 
+#ifdef DIM_3D
 int main()
 {
 	TestAll();
@@ -188,3 +189,162 @@ int main()
 	return 0;
 #endif
 }
+
+#else
+
+int main()
+{
+	TestAll();
+	system("pause");
+#if 1
+	int n1 = 100;		    // number of point across the directions
+	int n2 = 100;
+	int n = n1;				// size of blocks
+	int NB = n2;			// number of blocks
+	int size = n * NB;		// size of vector x and f: n1 * n2
+	int smallsize = 25;
+	double thresh = 1e-6;	// stop level of algorithm by relative error
+	int ItRef = 200;		// Maximal number of iterations in refirement
+	char bench[255] = "display"; // parameter into solver to show internal results
+	int sparse_size = n + 2 * (n - 1) + 2 * (n - n1);
+	int non_zeros_in_3diag = n + (n - 1) * 2 + (n - n1) * 2 - (n1 - 1) * 2;
+
+	size_m x, y, z;
+
+	x.n = n1;
+	y.n = n2;
+
+	x.l = y.l = n1 + 1;
+	x.h = x.l / (double)(x.n + 1);
+	y.h = y.l / (double)(y.n + 1);
+
+	dtype *D;
+	dtype *B_mat;
+
+	// Memory allocation for coefficient matrix A
+	// the size of matrix A: n^3 * n^3 = n^6
+#ifndef ONLINE
+	D = alloc_arr(size * n); // it's a matrix with size n^3 * n^2 = size * n
+	B_mat = alloc_arr((size - n) * n);
+	int ldd = size;
+	int ldb = size - n;
+#else
+	D = alloc_arr<dtype>(n * n); // it's a matrix with size n^3 * n^2 = size * n
+	B_mat = alloc_arr<dtype>(n * n);
+	int ldd = n;
+	int ldb = n;
+#endif
+
+	// Factorization matrix
+#ifndef STRUCT_CSR
+	double *G = alloc_arr(size * n);
+	int ldg = size;
+#else
+	cmnode **Gstr;
+#endif
+
+	// Solution, right hand side and block B
+	dtype *B = alloc_arr<dtype>(size - n); // vector of diagonal elementes
+	dtype *x_orig = alloc_arr<dtype>(size);
+	dtype *x_sol = alloc_arr<dtype>(size);
+	dtype *f = alloc_arr<dtype>(size);
+
+#ifdef STRUCT_CSR
+	// Memory for CSR matrix
+	dcsr *Dcsr;
+	//int non_zeros_in_block3diag = (n + (n - 1) * 2 + (n - x.n) * 2 - (x.n - 1) * 2) * NB + 2 * (size - n); 3D
+	int non_zeros_in_block3diag = (x.n + (x.n - 1) * 2) * NB + 2 * (size - n);
+	Dcsr = (dcsr*)malloc(sizeof(dcsr));
+	Dcsr->values = alloc_arr<dtype>(non_zeros_in_block3diag);
+	Dcsr->ia = alloc_arr<int>(size + 1);
+	Dcsr->ja = alloc_arr<int>(non_zeros_in_block3diag);
+	Dcsr->ia[size] = non_zeros_in_block3diag + 1;
+#endif
+
+	int success = 0;
+	int itcount = 0;
+	double RelRes = 0;
+	double norm = 0;
+	int nthr = omp_get_max_threads();
+
+	printf("Run in parallel on %d threads\n", nthr);
+
+	printf("Grid steps: hx = %lf hy = %lf\n", x.h, y.h);
+
+#ifndef STRUCT_CSR
+	// Generation matrix of coefficients, vector of solution (to compare with obtained) and vector of RHS
+	GenMatrixandRHSandSolution(n1, n2, n3, D, ldd, B, x_orig, f);
+#else
+
+	// Generation of vector of solution (to compare with obtained), vector of RHS and block B
+	GenRHSandSolution2D(x, y, B, x_orig, f);
+
+	// Generation of sparse coefficient matrix
+#ifndef ONLINE
+	GenSparseMatrix(x, y, z, B_mat, ldb, D, ldd, B_mat, ldb, Dcsr);
+#else
+	GenSparseMatrixOnline2D(x, y, B_mat, n, D, n, B_mat, n, Dcsr);
+	free_arr(D);
+#endif
+	free_arr(B_mat);
+
+	printf("Non_zeros in block-tridiagonal matrix: %d\n", non_zeros_in_block3diag);
+
+	//	Test_CompareColumnsOfMatrix(n1, n2, n3, D, ldd, B, Dcsr, thresh);
+	Test_TransferBlock3Diag_to_CSR(n1, n2, Dcsr, x_orig, f, thresh);
+#endif
+
+	printf("Solving %d x %d Helmholtz equation\n", n1, n2);
+	printf("The system has %d diagonal blocks of size %d x %d\n", n2, n, n);
+	printf("Compressed blocks method\n");
+	printf("Parameters: thresh = %g, smallsize = %d \n", thresh, smallsize);
+
+	// Calling the solver
+
+#ifndef STRUCT_CSR
+	Block3DSPDSolveFast(n1, n2, n3, D, ldd, B, f, thresh, smallsize, ItRef, bench, G, ldg, x_sol, success, RelRes, itcount);
+#else
+
+#ifndef ONLINE
+	Block3DSPDSolveFastStruct(x, y, D, ldd, B, f, Dcsr, thresh, smallsize, ItRef, bench, Gstr, x_sol, success, RelRes, itcount);
+#else
+	Block3DSPDSolveFastStruct(x, y, NULL, ldd, B, f, Dcsr, thresh, smallsize, ItRef, bench, Gstr, x_sol, success, RelRes, itcount);
+#endif
+
+#endif
+	printf("success = %d, itcount = %d\n", success, itcount);
+	printf("-----------------------------------\n");
+
+	printf("Computing error ||x_{exact}-x_{comp}||/||x_{exact}||\n");
+	norm = rel_error_complex(n, 1, x_sol, x_orig, size, thresh);
+
+	if (norm < thresh) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, thresh);
+	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, thresh);
+
+
+#ifdef STRUCT_CSR
+	Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
+	//Test_DirSolveFactDiagStructConvergence(x, y, z, Gstr, thresh, smallsize);
+	//Test_DirSolveFactDiagStructBlockRanks(x, y, z, Gstr);
+
+	for (int i = NB - 1; i >= 0; i--)
+		FreeNodes(n, Gstr[i], smallsize);
+
+	free(Gstr);
+#endif
+
+
+#ifndef ONLINE
+	free_arr(D);
+	free_arr(B);
+#endif
+	free_arr(x_orig);
+	free_arr(x_sol);
+	free_arr(f);
+
+	system("pause");
+
+	return 0;
+#endif
+}
+#endif

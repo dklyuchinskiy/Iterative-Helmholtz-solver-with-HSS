@@ -27,6 +27,8 @@ void GenMatrixandRHSandSolution2(size_m x, size_m y, size_m z, double *D, int ld
 double random(double min, double max);
 double F_ex(double x, double y, double z);
 double u_ex(double x, double y, double z);
+double F_ex_2D(double x, double y);
+double u_ex_2D(double x, double y);
 double rel_error(int n, int k, double *Hrec, double *Hinit, int ldh, double eps);
 
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr);
@@ -80,10 +82,10 @@ void SymResRestoreStruct(int n, cmnode* H1str, dtype *H2, int ldh, int smallsize
 double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, double eps);
 
 // Solver
-void Block3DSPDSolveFastStruct(size_m x, size_m y, size_m z, dtype *D, int ldd, dtype *B, dtype *f, dcsr* Dcsr, double thresh, int smallsize, int ItRef, char *bench,
+void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, dtype *f, dcsr* Dcsr, double thresh, int smallsize, int ItRef, char *bench,
 	cmnode** &Gstr, dtype *x_sol, int &success, double &RelRes, int &itcount);
-void DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** &Gstr, dtype *B, double thresh, int smallsize, char *bench);
-void DirSolveFastDiagStruct(int n1, int n2, int n3, cmnode* *Gstr, dtype *B, dtype *f, dtype *x, double eps, int smallsize);
+void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B, double thresh, int smallsize, char *bench);
+void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, dtype *x, double eps, int smallsize);
 
 void GenerateDiagonal2DBlock(int part_of_field, size_m x, size_m y, size_m z, dtype *DD, int lddd);
 
@@ -91,12 +93,14 @@ void DirFactFastDiagStruct(int n1, int n2, int n3, double *D, int ldd, double *B
 	double eps, int smallsize, char *bench);
 
 
-void ResidCSR(int n1, int n2, int n3, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes);
+void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes);
 void GenSparseMatrix(size_m x, size_m y, size_m z, double *BL, int ldbl, double *A, int lda, double *BR, int ldbr, dcsr* Acsr);
-
+void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd);
+void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f);
 void GenRHSandSolution(size_m x, size_m y, size_m z, dtype* B, dtype *u, dtype *f);
 void GenSparseMatrixOnline(size_m x, size_m y, size_m z, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
-
+void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
+map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level);
 map<vector<int>, dtype> dense_to_CSR(int m, int n, dtype *A, int lda, int *ia, int *ja, dtype *values);
 map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level);
 void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dtype* AR, int ldar);

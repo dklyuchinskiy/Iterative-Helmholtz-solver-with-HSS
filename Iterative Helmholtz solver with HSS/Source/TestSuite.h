@@ -36,8 +36,8 @@ void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name
 void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count);
 
 // Solver
-void Test_DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** Gstr, dtype *B, double thresh, int smallsize);
-void Test_TransferBlock3Diag_to_CSR(int n1, int n2, int n3, dcsr* Dcsr, dtype* x_orig, dtype *f, double eps);
+void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double thresh, int smallsize);
+void Test_TransferBlock3Diag_to_CSR(int n1, int n2, dcsr* Dcsr, dtype* x_orig, dtype *f, double eps);
 
 #if 0
 

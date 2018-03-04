@@ -160,12 +160,80 @@ void GenerateDiagonal2DBlock(int part_of_field, size_m x, size_m y, size_m z, dt
 
 }
 
+void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd)
+{
+	int n = x.n;
+
+	// diagonal blocks in dense format
+#pragma omp parallel for simd schedule(simd:static)
+	for (int i = 0; i < n; i++)
+	{
+		DD[i + lddd * i] = -2.0 * (1.0 / (x.h * x.h) + 1.0 / (y.h * y.h));
+		if (i > 0) DD[i + lddd * (i - 1)] = 1.0 / (x.h * x.h);
+		if (i < n - 1) DD[i + lddd * (i + 1)] = 1.0 / (x.h * x.h);
+
+	}
+	for (int i = 0; i < n; i++)
+	{
+		if (i % x.n == 0 && i > 0)
+		{
+			DD[i - 1 + lddd * i] = 0;
+			DD[i + lddd * (i - 1)] = 0;
+		}
+	}
+
+}
+
 // v[i] = D[i] * v[i]
 void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
 {
 #pragma omp parallel for simd schedule(simd:static)
 	for (int i = 0; i < n; i++)
 		f[i] = diag[i] * v[i];
+}
+
+void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f)
+{
+	int n = x.n;
+
+	// Set vector B
+#pragma omp parallel for schedule(dynamic)
+	for (int j = 0; j < y.n - 1; j++)
+#pragma omp simd
+		for (int i = 0; i < n; i++)
+			B[ind(j, n) + i] = 1.0 / (y.h * y.h);
+
+	// approximation of exact right hand side (inner grid points)
+#pragma omp parallel for schedule(dynamic)
+		for (int j = 0; j < y.n; j++)
+#pragma omp simd
+			for (int i = 0; i < x.n; i++)
+				f[j * x.n + i] = F_ex_2D((i + 1) * x.h, (j + 1) * y.h);
+
+
+	// for each boundary 0 <= y <= Ly
+	// we distract 4 known boundaries f0, fl, g0, gL from right hand side
+#pragma omp parallel for simd schedule(simd:static)
+		for (int i = 0; i < x.n; i++)
+		{
+			f[0 * x.n + i] -=	      u_ex_2D((i + 1) * x.h, 0)   / (y.h * y.h); // u|y = 0
+			f[(y.n - 1) * x.n + i] -= u_ex_2D((i + 1) * x.h, y.l) / (y.h * y.h); // u|y = h
+		}
+#pragma omp parallel for schedule(static)
+		for (int j = 0; j < y.n; j++)
+		{
+			f[j * x.n + 0] -=		u_ex_2D(0,   (j + 1) * y.h) / (x.h * x.h); // u|x = 0
+			f[j * x.n + x.n - 1] -= u_ex_2D(x.l, (j + 1) * y.h) / (x.h * x.h); // u|x = h
+		}
+
+	// approximation of inner points values
+#pragma omp parallel for schedule(dynamic)
+		for (int j = 0; j < y.n; j++)
+#pragma omp simd
+			for (int i = 0; i < x.n; i++)
+				u[ind(j, x.n) + i] = u_ex_2D((i + 1) * x.h, (j + 1) * y.h);
+
+	printf("RHS and solution are constructed\n");
 }
 
 void GenRHSandSolution(size_m x, size_m y, size_m z, /* output */ dtype* B, dtype *u, dtype *f)
@@ -244,6 +312,56 @@ void GenSparseMatrixOnline(size_m x, size_m y, size_m z, dtype *BL, int ldbl, dt
 	}
 }
 
+void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr)
+{
+	int n = x.n;
+	int non_zeros_on_prev_level = 0;
+	map<vector<int>, dtype> CSR;
+
+	Diag(n, BL, ldbl, 1.0 / (y.h * y.h));
+	Diag(n, BR, ldbr, 1.0 / (y.h * y.h));
+
+	for (int blk = 0; blk < y.n; blk++)
+	{
+		GenerateDiagonal1DBlock(blk, x, y, A, lda);
+		CSR = Block1DRowMat_to_CSR(blk, x.n, y.n, BL, ldbl, A, lda, BR, ldbr, Acsr, non_zeros_on_prev_level); // ВL, ВR and A - is 2D dimensional matrices (n x n)
+	}
+}
+
+map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level)
+{
+	map<vector<int>, dtype> CSR_A;
+	map<vector<int>, dtype> CSR;
+	vector<int> v(2, 0);
+	int n = n1;
+	dtype *Arow = alloc_arr<dtype>(n * 3 * n); int ldar = n;
+
+ 	if (blk == 0)
+	{
+		construct_block_row(n, n, NULL, ldbl, A, lda, BR, ldbr, Arow, ldar);
+		CSR_A = dense_to_CSR(n, 2 * n, Arow, ldar, &Acsr->ia[0], &Acsr->ja[0], &Acsr->values[0]);
+		non_zeros_on_prev_level = CSR_A.size();
+	}
+	else if (blk == n2 - 1)
+	{
+		construct_block_row(n, n, BL, ldbl, A, lda, NULL, ldbr, Arow, ldar);
+		CSR_A = dense_to_CSR(n, 2 * n, Arow, ldar, &Acsr->ia[ind(blk, n)], &Acsr->ja[non_zeros_on_prev_level], &Acsr->values[non_zeros_on_prev_level]);
+		shift_values(n, &Acsr->ia[ind(blk, n)], non_zeros_on_prev_level, CSR_A.size(), &Acsr->ja[non_zeros_on_prev_level], n * (blk - 1));
+		non_zeros_on_prev_level += CSR_A.size();
+	}
+	else
+	{
+		construct_block_row(n, n, BL, ldbl, A, lda, BR, ldbr, Arow, ldar);
+		CSR_A = dense_to_CSR(n, 3 * n, Arow, ldar, &Acsr->ia[ind(blk, n)], &Acsr->ja[non_zeros_on_prev_level], &Acsr->values[non_zeros_on_prev_level]);
+		// shift values of arrays according to previous level
+		shift_values(n, &Acsr->ia[ind(blk, n)], non_zeros_on_prev_level, CSR_A.size(), &Acsr->ja[non_zeros_on_prev_level], n * (blk - 1));
+		non_zeros_on_prev_level += CSR_A.size();
+	}
+
+	free_arr(Arow);
+	return CSR;
+}
+
 map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level)
 {
 	map<vector<int>, dtype> CSR_A;
@@ -274,7 +392,7 @@ map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtyp
 		non_zeros_on_prev_level += CSR_A.size();
 	}
 
-	free(Arow);
+	free_arr(Arow);
 	return CSR_A;
 }
 
@@ -290,7 +408,7 @@ map<vector<int>, dtype> dense_to_CSR(int m, int n, dtype *A, int lda, int *ia, i
 		first_elem_in_row = 0;
 		for (int j = 0; j < n; j++)
 		{
-			if (abs(A[i + lda * j]) != 0)
+			if (std::abs(A[i + lda * j]) != 0)
 			{
 				values[k] = A[i + lda * j];
 				if (first_elem_in_row == 0)
@@ -345,6 +463,18 @@ void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, d
 	}
 }
 
+double F_ex_2D(double x, double y)
+{
+	//	return -12.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
+	return 0;
+}
+
+double u_ex_2D(double x, double y)
+{
+	//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
+	return x * x - y * y;
+}
+
 double F_ex(double x, double y, double z)
 {
 	//	return -12.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
@@ -354,7 +484,7 @@ double F_ex(double x, double y, double z)
 double u_ex(double x, double y, double z)
 {
 	//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
-	return x * x + y * y - 2.0 * z * z;
+	return x * x + y * y - 2 * z * z;
 }
 
 

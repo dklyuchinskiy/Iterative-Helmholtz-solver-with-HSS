@@ -683,11 +683,12 @@ void Test_CopyStruct(int n, double eps, char *method, int smallsize)
 	free_arr(H);
 }
 
-void Test_DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** Gstr, dtype *B, double eps, int smallsize)
+void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double eps, int smallsize)
 {
 	printf("Testing factorization...\n");
-	int n = x.n * y.n;
-	int size = n * z.n;
+	int n = x.n;
+	int size = n * y.n;
+	int nbr = y.n;
 	char bench[255] = "No";
 	dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 	dtype *DR = alloc_arr<dtype>(n * n); int lddr = n;
@@ -696,7 +697,7 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** Gst
 	double timer = 0;
 	timer = omp_get_wtime();
 
-	GenerateDiagonal2DBlock(0, x, y, z, DD, lddd);
+	GenerateDiagonal1DBlock(0, x, y, DD, lddd);
 
 	cmnode *DCstr;
 	SymCompRecInvStruct(n, Gstr[0], DCstr, smallsize, eps, "SVD");
@@ -711,7 +712,7 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** Gst
 	free_arr(DR);
 	FreeNodes(n, DCstr, smallsize);
 
-	for (int k = 1; k < z.n; k++)
+	for (int k = 1; k < nbr; k++)
 	{
 		dtype *DR = alloc_arr<dtype>(n * n); int lddr = n;
 		dtype *HR = alloc_arr<dtype>(n * n); int ldhr = n;
@@ -750,13 +751,13 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, size_m z, cmnode** Gst
 
 }
 
-void Test_TransferBlock3Diag_to_CSR(int n1, int n2, int n3, dcsr* Dcsr, dtype* x_orig, dtype *f, double eps)
+void Test_TransferBlock3Diag_to_CSR(int n1, int n2, dcsr* Dcsr, dtype* x_orig, dtype *f, double eps)
 {
-	int n = n1 * n2;
-	int size = n * n3;
+	int n = n1;
+	int size = n * n2;
 	double RelRes = 0;
 	dtype *g = alloc_arr<dtype>(size);
-	ResidCSR(n1, n2, n3, Dcsr, x_orig, f, g, RelRes);
+	ResidCSR(n1, n2, Dcsr, x_orig, f, g, RelRes);
 
 	if (RelRes < eps) printf("Norm %10.8e < eps %10.8lf: PASSED\n", RelRes, eps);
 	else printf("Norm %10.8lf > eps %10.8e : FAILED\n", RelRes, eps);
