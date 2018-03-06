@@ -133,6 +133,13 @@ void Add_dense(int m, int n, dtype alpha, dtype *A, int lda, dtype beta, dtype *
 	}
 }
 
+void print_vec_complex(int size, dtype *vec, char *name)
+{
+	printf("%s\n", name);
+	for (int i = 0; i < size; i++)
+		printf("%d   %lf   %lf\n", i, vec[i].real(), vec[i].imag());
+}
+
 void GenerateDiagonal2DBlock(int part_of_field, size_m x, size_m y, size_m z, dtype *DD, int lddd)
 {
 	int n = x.n * y.n;
@@ -164,24 +171,46 @@ void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, i
 {
 	int n = x.n;
 
+	dtype *alp = alloc_arr<dtype>(n + 2);
+	for (int i = 0; i < n + 2; i++)
+		alp[i] = alph(x, y, i * x.h); // from 0 to 1 including boundaries
+
+//	print_vec_complex(n + 2, alp, "alp");
+//	system("pause");
+
 	// diagonal blocks in dense format
 #pragma omp parallel for simd schedule(simd:static)
 	for (int i = 0; i < n; i++)
 	{
-		DD[i + lddd * i] = -2.0 * (1.0 / (x.h * x.h) + 1.0 / (y.h * y.h));
-		if (i > 0) DD[i + lddd * (i - 1)] = 1.0 / (x.h * x.h);
-		if (i < n - 1) DD[i + lddd * (i + 1)] = 1.0 / (x.h * x.h);
-
-	}
-	for (int i = 0; i < n; i++)
-	{
-		if (i % x.n == 0 && i > 0)
-		{
-			DD[i - 1 + lddd * i] = 0;
-			DD[i + lddd * (i - 1)] = 0;
-		}
+		double freq = omega * omega / pow(c0(i * x.h, i * y.h), 2);
+		DD[i + lddd * i] = -alp[i] * (alp[i + 2] + 2.0 * alp[i + 1] + alp[i]) / 2.0
+			* (1.0 / (x.h * x.h) + 1.0 / (y.h * y.h))
+			+ dtype{ freq , freq * beta_eq }
+			- dtype{ ky * ky, 0 };
+		if (i > 0) DD[i + lddd * (i - 1)] = (alp[i] + alp[i - 1]) / 2.0 / (x.h * x.h);
+		if (i < n - 1) DD[i + lddd * (i + 1)] = (alp[i + 1] + alp[i]) / 2.0 / (x.h * x.h);
 	}
 
+}
+
+double c0(double x, double y)
+{
+	return 0.75;
+}
+
+double d(double x)
+{
+	const double C = 1.25;
+	return C * pow(x, 4);
+}
+
+dtype alph(size_m xm, size_m ym, double x)
+{
+	double x_pml = xm.l * pml / 100.0;
+	if (x <= x_pml || x >= (xm.l - x_pml))
+		return { omega * omega / (omega * omega + d(x) * d(x)), omega * d(x) / (omega * omega + d(x) * d(x)) };
+	else
+		return 1.0;
 }
 
 // v[i] = D[i] * v[i]
@@ -232,6 +261,26 @@ void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dt
 #pragma omp simd
 			for (int i = 0; i < x.n; i++)
 				u[ind(j, x.n) + i] = u_ex_2D((i + 1) * x.h, (j + 1) * y.h);
+
+	printf("RHS and solution are constructed\n");
+}
+
+void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype* B, dtype *u, dtype *f)
+{
+	int n = x.n;
+	int size = n * y.n;
+
+	// Set vector B
+#pragma omp parallel for schedule(dynamic)
+	for (int j = 0; j < y.n - 1; j++)
+#pragma omp simd
+		for (int i = 0; i < n; i++)
+			B[ind(j, n) + i] = 1.0 / (y.h * y.h);
+
+	// approximation of inner points values
+	GenSolVector(x.n * y.n, u);
+
+	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, u, f);
 
 	printf("RHS and solution are constructed\n");
 }
@@ -487,9 +536,56 @@ double u_ex(double x, double y, double z)
 	return x * x + y * y - 2 * z * z;
 }
 
+void GenSolVector(int size, dtype *vector)
+{
+	srand((unsigned int)time(0));
+	for (int i = 0; i < size; i++)
+		vector[i] = random(0.0, 1.0);
+}
+
+double random(double min, double max)
+{
+	return (double)(rand()) / RAND_MAX * (max - min) + min;
+}
+
 
 
 #if 0
+
+void Mult_Au(int n1, int n2, dtype *D, int ldd, double *B, double *u, double *Au /*output*/)
+{
+	int n = n1 * n2;
+	int nbr = n3;
+	int size = n * nbr;
+	double done = 1.0;
+	double dzero = 0.0;
+	int ione = 1;
+	double *f_help = alloc_arr(n);
+
+	// f[1] = D{1} * x{1} + diag(B{1}) * x{2};
+	DenseDiagMult(n, &B[ind(0, n)], &u[ind(1, n)], &Au[ind(0, n)]);
+	dgemv("No", &n, &n, &done, &D[ind(0, n)], &ldd, &u[ind(0, n)], &ione, &done, &Au[ind(0, n)], &ione);
+
+	// f[N] = diag(B{N-1}) * x{N-1} + D{N} * x{N};
+	DenseDiagMult(n, &B[ind(nbr - 2, n)], &u[ind(nbr - 2, n)], &Au[ind(nbr - 1, n)]);
+	dgemv("No", &n, &n, &done, &D[ind(nbr - 1, n)], &ldd, &u[ind(nbr - 1, n)], &ione, &done, &Au[ind(nbr - 1, n)], &ione);
+
+	// f{ i } = diag(B{ i - 1 }) * x{ i - 1 } + D{ i } * x{ i } + diag(B{ i }) * x{ i + 1 };
+	for (int blk = 1; blk < nbr - 1; blk++)
+	{
+		// f{ i } = diag(B{ i - 1 }) * x { i - 1 } + diag(B{ i }) * x { i + 1 };
+		DenseDiagMult(n, &B[ind(blk - 1, n)], &u[ind(blk - 1, n)], &Au[ind(blk, n)]);
+		DenseDiagMult(n, &B[ind(blk, n)], &u[ind(blk + 1, n)], f_help);
+		daxpby(&n, &done, f_help, &ione, &done, &Au[ind(blk, n)], &ione);
+
+		// f{i} = f{i} + D{ i } * x{ i }  matrix D - non symmetric
+		dgemv("No", &n, &n, &done, &D[ind(blk, n)], &ldd, &u[ind(blk, n)], &ione, &done, &Au[ind(blk, n)], &ione);
+	}
+
+	free_arr(&f_help);
+}
+
+
 // Low Rank approximation
 void LowRankApprox(int n2, int n1 /* size of A21 = A */, double *A /* A is overwritten by U */, int lda,
 				   double *V /* V is stored in A12 */, int ldv, int &p, double eps, char *method)
@@ -841,40 +937,6 @@ void GenMatrixandRHSandSolution2(size_m x, size_m y, size_m z,
 
 }
 
-
-void Mult_Au(int n1, int n2, int n3, double *D, int ldd, double *B, double *u, double *Au /*output*/)
-{
-	int n = n1 * n2;
-	int nbr = n3;
-	int size = n * nbr;
-	double done = 1.0;
-	double dzero = 0.0;
-	int ione = 1;
-	double *f_help = alloc_arr(n);
-
-	// f[1] = D{1} * x{1} + diag(B{1}) * x{2};
-	DenseDiagMult(n, &B[ind(0, n)], &u[ind(1, n)], &Au[ind(0, n)]);
-	dgemv("No", &n, &n, &done, &D[ind(0, n)], &ldd, &u[ind(0, n)], &ione, &done, &Au[ind(0, n)], &ione);
-
-	// f[N] = diag(B{N-1}) * x{N-1} + D{N} * x{N};
-	DenseDiagMult(n, &B[ind(nbr - 2, n)], &u[ind(nbr - 2, n)], &Au[ind(nbr - 1, n)]);
-	dgemv("No", &n, &n, &done, &D[ind(nbr - 1, n)], &ldd, &u[ind(nbr - 1, n)], &ione, &done, &Au[ind(nbr - 1, n)], &ione);
-
-	// f{ i } = diag(B{ i - 1 }) * x{ i - 1 } + D{ i } * x{ i } + diag(B{ i }) * x{ i + 1 };
-	for (int blk = 1; blk < nbr - 1; blk++)
-	{
-		// f{ i } = diag(B{ i - 1 }) * x { i - 1 } + diag(B{ i }) * x { i + 1 };
-		DenseDiagMult(n, &B[ind(blk - 1, n)], &u[ind(blk - 1, n)], &Au[ind(blk, n)]);
-		DenseDiagMult(n, &B[ind(blk, n)], &u[ind(blk + 1, n)], f_help);
-		daxpby(&n, &done, f_help, &ione, &done, &Au[ind(blk, n)], &ione);
-
-		// f{i} = f{i} + D{ i } * x{ i }  matrix D - non symmetric
-		dgemv("No", &n, &n, &done, &D[ind(blk, n)], &ldd, &u[ind(blk, n)], &ione, &done, &Au[ind(blk, n)], &ione);
-	}
-
-	free_arr(&f_help);
-}
-
 inline void Add_dense_vect(int n, double alpha, double *a, double beta, double *b, double *c)
 {
 #pragma omp parallel for simd schedule(simd:static)
@@ -882,12 +944,6 @@ inline void Add_dense_vect(int n, double alpha, double *a, double beta, double *
 		c[i] = alpha * a[i] + beta * b[i];
 }
 
-void GenSolVector(int size, double *vector)
-{
-	srand((unsigned int)time(0));
-	for (int i = 0; i < size; i++)
-		vector[i] = random(0.0, 1.0);
-}
 
 void Block3DSPDSolveFast(int n1, int n2, int n3, double *D, int ldd, double *B, double *f, double thresh, int smallsize, int ItRef, char *bench,
 			/* output */ double *G, int ldg, double *x_sol, int &success, double &RelRes, int &itcount)
@@ -1301,11 +1357,6 @@ void print_map(const map<vector<int>, double>& SD)
 	for (const auto& item : SD)
 		cout << "m = " << item.first[0] << " n = " << item.first[1] << " value = " << item.second << endl;
 
-}
-
-double random(double min, double max)
-{
-	return (double)(rand()) / RAND_MAX * (max - min) + min;
 }
 
 void print_vec(int size, double *vec1, double *vec2, char *name)

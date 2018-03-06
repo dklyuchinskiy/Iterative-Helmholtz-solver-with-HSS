@@ -97,8 +97,23 @@ typedef struct list qlist;
 //#define COL_UPDATE
 //#define COL_ADD
 
+#define max(a, b) ((a > b) ? (a) : (b)) 
 
 #define PI 3.141592653589793238462643
+
+// parameters of Helmholtz equation
+
+#if 1
+#define omega 4
+#define ky 1.78
+#define pml max(15, c0(1, 1) / omega)
+#define beta_eq 2.23
+#else
+#define omega 0
+#define ky 0
+#define pml 100
+#define beta_eq 1
+#endif
 
 // Функция выделения памяти под массив
 

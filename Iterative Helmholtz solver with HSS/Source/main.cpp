@@ -199,6 +199,8 @@ int main()
 #if 1
 	int n1 = 100;		    // number of point across the directions
 	int n2 = 100;
+
+
 	int n = n1;				// size of blocks
 	int NB = n2;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
@@ -277,13 +279,14 @@ int main()
 #else
 
 	// Generation of vector of solution (to compare with obtained), vector of RHS and block B
-	GenRHSandSolution2D(x, y, B, x_orig, f);
+	//GenRHSandSolution2D(x, y, B, x_orig, f);
 
 	// Generation of sparse coefficient matrix
 #ifndef ONLINE
 	GenSparseMatrix(x, y, z, B_mat, ldb, D, ldd, B_mat, ldb, Dcsr);
 #else
 	GenSparseMatrixOnline2D(x, y, B_mat, n, D, n, B_mat, n, Dcsr);
+	GenRHSandSolution2D_Syntetic(x, y, Dcsr, B, x_orig, f);
 	free_arr(D);
 #endif
 	free_arr(B_mat);

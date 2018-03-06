@@ -30,6 +30,9 @@ double u_ex(double x, double y, double z);
 double F_ex_2D(double x, double y);
 double u_ex_2D(double x, double y);
 double rel_error(int n, int k, double *Hrec, double *Hinit, int ldh, double eps);
+double c0(double x, double y);
+dtype alph(size_m xm, size_m ym, double x);
+void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype* B, dtype *u, dtype *f);
 
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr);
 void Hilbert(int n, dtype *H, int ldh);
@@ -40,7 +43,7 @@ void print_map(const map<vector<int>, double>& SD);
 void Eye(int n, dtype *H, int ldh);
 void Diag(int n, dtype *H, int ldh, double value);
 void Add_dense_vect(int n, double alpha, double *a, double beta, double *b, double *c);
-void GenSolVector(int size, double *x1);
+void GenSolVector(int size, dtype *x1);
 void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f);
 void Mult_Au(int n1, int n2, int n3, double *D, int ldd, double *B, double *u, double *Au /*output*/);
 void print(int m, int n, double *u, int ldu, char *mess);
@@ -48,6 +51,7 @@ void print_vec_mat(int m, int n, double *u, int ldu, double *vec, char *mess);
 void print_vec(int size, double *vec1, double *vec2, char *name);
 void print_vec(int size, int *vec1, double *vec2, char *name);
 
+void print_vec_complex(int size, dtype *p2, char *name);
 
 int compare_str(int n, char *s1, char *s2);
 int ind(int j, int n);
