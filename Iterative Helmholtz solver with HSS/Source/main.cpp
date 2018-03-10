@@ -194,31 +194,31 @@ int main()
 
 int main()
 {
-	TestAll();
-	system("pause");
+	//TestAll();
+	//system("pause");
 #if 1
-	int n1 = 100;		    // number of point across the directions
-	int n2 = 100;
+	int n1 = 420;		    // number of point across the directions
+	int n2 = 420;
 
 
-	int n = n1;				// size of blocks
-	int NB = n2;			// number of blocks
+	int n = n1 + 2 * pml;				// size of blocks
+	int NB = n2 + 2 * pml;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
-	int smallsize = 25;
+	int smallsize = 50;
 	double thresh = 1e-6;	// stop level of algorithm by relative error
 	int ItRef = 200;		// Maximal number of iterations in refirement
-	char bench[255] = "display"; // parameter into solver to show internal results
+	char bench[255] = "no"; // parameter into solver to show internal results
 	int sparse_size = n + 2 * (n - 1) + 2 * (n - n1);
 	int non_zeros_in_3diag = n + (n - 1) * 2 + (n - n1) * 2 - (n1 - 1) * 2;
 
 	size_m x, y, z;
 
-	x.n = n1;
-	y.n = n2;
+	x.n = n;
+	y.n = NB;
 
 	x.l = y.l = n1 + 1;
-	x.h = x.l / (double)(x.n + 1);
-	y.h = y.l / (double)(y.n + 1);
+	x.h = x.l / (double)(n1 + 1);
+	y.h = y.l / (double)(n2 + 1);
 
 	dtype *D;
 	dtype *B_mat;
@@ -267,6 +267,7 @@ int main()
 	int itcount = 0;
 	double RelRes = 0;
 	double norm = 0;
+	double timer = 0;
 	int nthr = omp_get_max_threads();
 
 	printf("Run in parallel on %d threads\n", nthr);
@@ -285,8 +286,8 @@ int main()
 #ifndef ONLINE
 	GenSparseMatrix(x, y, z, B_mat, ldb, D, ldd, B_mat, ldb, Dcsr);
 #else
-	GenSparseMatrixOnline2D(x, y, B_mat, n, D, n, B_mat, n, Dcsr);
-	GenRHSandSolution2D_Syntetic(x, y, Dcsr, B, x_orig, f);
+	GenSparseMatrixOnline2D(x, y, B, B_mat, n, D, n, B_mat, n, Dcsr);
+	GenRHSandSolution2D_Syntetic(x, y, Dcsr, x_orig, f);
 	free_arr(D);
 #endif
 	free_arr(B_mat);
@@ -302,31 +303,36 @@ int main()
 	printf("Compressed blocks method\n");
 	printf("Parameters: thresh = %g, smallsize = %d \n", thresh, smallsize);
 
+	//system("pause");
+
 	// Calling the solver
 
 #ifndef STRUCT_CSR
 	Block3DSPDSolveFast(n1, n2, n3, D, ldd, B, f, thresh, smallsize, ItRef, bench, G, ldg, x_sol, success, RelRes, itcount);
 #else
 
+	timer = omp_get_wtime();
 #ifndef ONLINE
 	Block3DSPDSolveFastStruct(x, y, D, ldd, B, f, Dcsr, thresh, smallsize, ItRef, bench, Gstr, x_sol, success, RelRes, itcount);
 #else
 	Block3DSPDSolveFastStruct(x, y, NULL, ldd, B, f, Dcsr, thresh, smallsize, ItRef, bench, Gstr, x_sol, success, RelRes, itcount);
 #endif
+	timer = omp_get_wtime() - timer;
+	printf("Time HSS solver: %lf\n", timer);
 
 #endif
 	printf("success = %d, itcount = %d\n", success, itcount);
 	printf("-----------------------------------\n");
 
-	printf("Computing error ||x_{exact}-x_{comp}||/||x_{exact}||\n");
-	norm = rel_error_complex(n, 1, x_sol, x_orig, size, thresh);
+	printf("Computing error ||x_{exact}-x_{HSS}||/||x_{exact}||\n");
+	norm = rel_error_complex(size, 1, x_sol, x_orig, size, thresh);
 
 	if (norm < thresh) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, thresh);
 	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, thresh);
 
 
 #ifdef STRUCT_CSR
-	Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
+	//Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
 	//Test_DirSolveFactDiagStructConvergence(x, y, z, Gstr, thresh, smallsize);
 	//Test_DirSolveFactDiagStructBlockRanks(x, y, z, Gstr);
 
@@ -335,6 +341,49 @@ int main()
 
 	free(Gstr);
 #endif
+
+	// Check Pardiso
+	int mtype = 13;
+	int *iparm = alloc_arr<int>(64);
+	int *perm = alloc_arr<int>(size);
+	dtype *x_sol_prd = alloc_arr<dtype>(size);
+	int *pt = alloc_arr<int>(64);
+
+	int maxfct = 1;
+	int mnum = 1;
+	int phase = 0;
+	int rhs = 1;
+	int msglvl = 0;
+	int error = 0;
+
+	iparm[0] = 0;
+	pardisoinit(pt, &mtype, iparm);
+
+#if 0
+	phase = 11;
+	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
+
+	printf("Error Pardiso: %d\n", error);
+	phase = 22;
+	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
+
+	phase = 33;
+	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
+#else
+	phase = 13;
+	timer = omp_get_wtime();
+	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
+	timer = omp_get_wtime() - timer;
+	printf("Time PARDISO: %lf\n", timer);
+#endif
+
+	printf("Computing error ||x_{exact}-x_{PRD}||/||x_{exact}||\n");
+
+	//compare_vec(size, x_sol_prd, x_orig);
+	norm = rel_error_complex(size, 1, x_sol_prd, x_orig, size, thresh);
+
+	if (norm < thresh) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, thresh);
+	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, thresh);
 
 
 #ifndef ONLINE

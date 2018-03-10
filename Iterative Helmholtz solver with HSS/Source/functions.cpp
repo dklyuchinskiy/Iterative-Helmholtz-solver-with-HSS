@@ -84,6 +84,16 @@ void Diag(int n, dtype *H, int ldh, double value)
 			else H[i + ldh * j] = 0.0;
 }
 
+void DiagVec(int n, dtype *H, int ldh, dtype *value)
+{
+#pragma omp parallel for schedule(static)
+	for (int j = 0; j < n; j++)
+#pragma omp simd
+		for (int i = 0; i < n; i++)
+			if (j == i) H[i + ldh * j] = value[j];
+			else H[i + ldh * j] = 0.0;
+}
+
 
 void Hilbert(int n, dtype *H, int ldh)
 {
@@ -167,32 +177,6 @@ void GenerateDiagonal2DBlock(int part_of_field, size_m x, size_m y, size_m z, dt
 
 }
 
-void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd)
-{
-	int n = x.n;
-
-	dtype *alp = alloc_arr<dtype>(n + 2);
-	for (int i = 0; i < n + 2; i++)
-		alp[i] = alph(x, y, i * x.h); // from 0 to 1 including boundaries
-
-//	print_vec_complex(n + 2, alp, "alp");
-//	system("pause");
-
-	// diagonal blocks in dense format
-#pragma omp parallel for simd schedule(simd:static)
-	for (int i = 0; i < n; i++)
-	{
-		double freq = omega * omega / pow(c0(i * x.h, i * y.h), 2);
-		DD[i + lddd * i] = -alp[i] * (alp[i + 2] + 2.0 * alp[i + 1] + alp[i]) / 2.0
-			* (1.0 / (x.h * x.h) + 1.0 / (y.h * y.h))
-			+ dtype{ freq , freq * beta_eq }
-			- dtype{ ky * ky, 0 };
-		if (i > 0) DD[i + lddd * (i - 1)] = (alp[i] + alp[i - 1]) / 2.0 / (x.h * x.h);
-		if (i < n - 1) DD[i + lddd * (i + 1)] = (alp[i + 1] + alp[i]) / 2.0 / (x.h * x.h);
-	}
-
-}
-
 double c0(double x, double y)
 {
 	return 0.75;
@@ -204,21 +188,39 @@ double d(double x)
 	return C * pow(x, 4);
 }
 
-dtype alph(size_m xm, size_m ym, double x)
+dtype alph(size_m size, int xl, int xr, int i)
 {
-	double x_pml = xm.l * pml / 100.0;
-	if (x <= x_pml || x >= (xm.l - x_pml))
+	double x = 0;
+	if (i < xl || i >= (size.n - xr))
+	{
+		if (i < xl) x = (xl - 1 - i) * size.h;
+		else if (i >= (size.n - xr)) x = (size.n - xr - i) * size.h;
 		return { omega * omega / (omega * omega + d(x) * d(x)), omega * d(x) / (omega * omega + d(x) * d(x)) };
+	}
 	else
 		return 1.0;
 }
 
-// v[i] = D[i] * v[i]
-void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
+void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd, dtype *alpX, dtype* alpY)
 {
+	int n = x.n;
+
+//	print_vec_complex(n + 2, alp, "alp");
+//	system("pause");
+
+	// diagonal blocks in dense format
 #pragma omp parallel for simd schedule(simd:static)
 	for (int i = 0; i < n; i++)
-		f[i] = diag[i] * v[i];
+	{
+		double freq = omega * omega / pow(c0(i * x.h, i * y.h), 2);
+		DD[i + lddd * i] = -alpX[i] * (alpX[i + 2] + 2.0 * alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h)
+						   -alpY[i] * (alpY[i + 2] + 2.0 * alpY[i + 1] + alpY[i]) / (2.0 * y.h * y.h)
+			+ dtype{ freq , freq * beta_eq }
+			- dtype{ ky * ky, 0 };
+		if (i > 0) DD[i + lddd * (i - 1)] = alpX[i] * (alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h);
+		if (i < n - 1) DD[i + lddd * (i + 1)] = alpX[i + 1] * (alpX[i + 2] + alpX[i + 1]) / (2.0 * x.h * x.h);
+	}
+
 }
 
 void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f)
@@ -265,20 +267,13 @@ void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dt
 	printf("RHS and solution are constructed\n");
 }
 
-void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype* B, dtype *u, dtype *f)
+void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, dtype *u, dtype *f)
 {
 	int n = x.n;
 	int size = n * y.n;
 
-	// Set vector B
-#pragma omp parallel for schedule(dynamic)
-	for (int j = 0; j < y.n - 1; j++)
-#pragma omp simd
-		for (int i = 0; i < n; i++)
-			B[ind(j, n) + i] = 1.0 / (y.h * y.h);
-
 	// approximation of inner points values
-	GenSolVector(x.n * y.n, u);
+	GenSolVector(size, u);
 
 	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, u, f);
 
@@ -361,20 +356,55 @@ void GenSparseMatrixOnline(size_m x, size_m y, size_m z, dtype *BL, int ldbl, dt
 	}
 }
 
-void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr)
+void SetPml(int blk, size_m x, size_m y, int n, dtype* alpX, dtype* alpY)
+{
+	if (blk < pml || blk >= (y.n - pml)) // pml to first Nx + pml strings
+	{
+		// from 0 to 1 including boundaries
+		for (int i = 0; i < n + 2; i++) // n + 1 points = 2 bound + (n  - 1) inside domain
+		{
+			alpX[i] = alph(x, pml, pml, i);     // a(x) != 1 only in the pml section
+			alpY[i] = alph(x, n - 1, n - 1, i); // a(y) != 1 in the whole domain
+		}
+	}
+	else
+	{
+		for (int i = 0; i < n + 2; i++) // n + 1 points = 2 bound + (n  - 1) inside domain
+		{
+			alpX[i] = alph(x, pml, pml, i);   // a(x) != 1 only in the pml section
+			alpY[i] = alph(x, 0, 0, i);       // a(y) == 1 in the whole domain
+		}
+	}
+}
+
+void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr)
 {
 	int n = x.n;
 	int non_zeros_on_prev_level = 0;
 	map<vector<int>, dtype> CSR;
+	dtype *alpX = alloc_arr<dtype>(n + 2);
+	dtype *alpY = alloc_arr<dtype>(n + 2);
 
-	Diag(n, BL, ldbl, 1.0 / (y.h * y.h));
-	Diag(n, BR, ldbr, 1.0 / (y.h * y.h));
-
-	for (int blk = 0; blk < y.n; blk++)
+	for (int blk = 0; blk < y.n; blk++) // y,n = pml + Ny + pml
 	{
-		GenerateDiagonal1DBlock(blk, x, y, A, lda);
-		CSR = Block1DRowMat_to_CSR(blk, x.n, y.n, BL, ldbl, A, lda, BR, ldbr, Acsr, non_zeros_on_prev_level); // ВL, ВR and A - is 2D dimensional matrices (n x n)
+		// Set Perfect Matched Layer to the domain
+		SetPml(blk, x, y, n, alpX, alpY);
+
+		// Set vector B
+#pragma omp parallel for schedule(static)
+		for (int j = 0; j < y.n - 1; j++)
+#pragma omp simd
+			for (int i = 0; i < n; i++)
+				B[ind(j, n) + i] = alpY[i + 1] * (alpY[i + 2] + alpY[i + 1]) / (2.0 * y.h * y.h);
+
+		DiagVec(n, BL, ldbl, B); // B тоже должен меняться в зависимости от уровня blk
+		DiagVec(n, BR, ldbr, B);
+
+		GenerateDiagonal1DBlock(blk, x, y, A, lda, alpX, alpY);
+		CSR = Block1DRowMat_to_CSR(blk, x.n, y.n, BL, ldbl, A, lda, BR, ldbr, Acsr, non_zeros_on_prev_level);
 	}
+	free_arr(alpX);
+	free_arr(alpY);
 }
 
 map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level)
@@ -512,6 +542,14 @@ void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, d
 	}
 }
 
+// v[i] = D[i] * v[i]
+void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
+{
+#pragma omp parallel for simd schedule(simd:static)
+	for (int i = 0; i < n; i++)
+		f[i] = diag[i] * v[i];
+}
+
 double F_ex_2D(double x, double y)
 {
 	//	return -12.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
@@ -540,7 +578,10 @@ void GenSolVector(int size, dtype *vector)
 {
 	srand((unsigned int)time(0));
 	for (int i = 0; i < size; i++)
+	{
 		vector[i] = random(0.0, 1.0);
+	//	printf("%lf\n", vector[i].real());
+	}
 }
 
 double random(double min, double max)
@@ -1390,3 +1431,9 @@ void print_vec_mat(int m, int n, double *u, int ldu, double *vec, char *mess)
 
 }
 #endif
+
+void compare_vec(int size, dtype* v1, dtype* v2)
+{
+	for (int i = 0; i < size; i++)
+		printf("%d %lf %lf\n", i, v1[i].real(), v2[i].real());
+}

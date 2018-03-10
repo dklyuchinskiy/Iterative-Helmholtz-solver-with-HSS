@@ -692,12 +692,15 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 	char bench[255] = "No";
 	dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 	dtype *DR = alloc_arr<dtype>(n * n); int lddr = n;
+	dtype *alpX = alloc_arr<dtype>(n + 2);
+	dtype *alpY = alloc_arr<dtype>(n + 2);
 	double norm = 0;
 
 	double timer = 0;
 	timer = omp_get_wtime();
 
-	GenerateDiagonal1DBlock(0, x, y, DD, lddd);
+	SetPml(0, x, y, n, alpX, alpY);
+	GenerateDiagonal1DBlock(0, x, y, DD, lddd, alpX, alpY);
 
 	cmnode *DCstr;
 	SymCompRecInvStruct(n, Gstr[0], DCstr, smallsize, eps, "SVD");
@@ -710,12 +713,14 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, eps);
 
 	free_arr(DR);
+	free_arr(DD);
 	FreeNodes(n, DCstr, smallsize);
 
 	for (int k = 1; k < nbr; k++)
 	{
 		dtype *DR = alloc_arr<dtype>(n * n); int lddr = n;
 		dtype *HR = alloc_arr<dtype>(n * n); int ldhr = n;
+		dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 		cmnode *DCstr, *Hstr;
 
 		printf("Block %d. ", k);
@@ -734,6 +739,9 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 			for (int i = 0; i < n; i++)
 				HR[i + ldhr * j] = HR[i + ldhr * j] + DR[i + lddr * j];
 
+		SetPml(k, x, y, n, alpX, alpY);
+		GenerateDiagonal1DBlock(k, x, y, DD, lddd, alpX, alpY);
+
 		norm = rel_error_complex(n, n, HR, DD, lddd, eps);
 
 		if (norm < eps) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, eps);
@@ -743,11 +751,10 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 		FreeNodes(n, Hstr, smallsize);
 		free_arr(DR);
 		free_arr(HR);
+		free_arr(DD);
 	}
 	timer = omp_get_wtime() - timer;
 	printf("Time: %lf\n", timer);
-
-	free_arr(DD);
 
 }
 

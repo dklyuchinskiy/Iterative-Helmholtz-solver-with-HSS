@@ -31,8 +31,8 @@ double F_ex_2D(double x, double y);
 double u_ex_2D(double x, double y);
 double rel_error(int n, int k, double *Hrec, double *Hinit, int ldh, double eps);
 double c0(double x, double y);
-dtype alph(size_m xm, size_m ym, double x);
-void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype* B, dtype *u, dtype *f);
+dtype alph(size_m size, int xl, int xr, int i);
+void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype *u, dtype *f);
 
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr);
 void Hilbert(int n, dtype *H, int ldh);
@@ -96,21 +96,23 @@ void GenerateDiagonal2DBlock(int part_of_field, size_m x, size_m y, size_m z, dt
 void DirFactFastDiagStruct(int n1, int n2, int n3, double *D, int ldd, double *B, mnode** &Gstr, 
 	double eps, int smallsize, char *bench);
 
-
+void DiagVec(int n, dtype *H, int ldh, dtype *value);
 void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes);
 void GenSparseMatrix(size_m x, size_m y, size_m z, double *BL, int ldbl, double *A, int lda, double *BR, int ldbr, dcsr* Acsr);
-void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd);
+void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd, dtype *alpX, dtype* alpY);
 void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f);
 void GenRHSandSolution(size_m x, size_m y, size_m z, dtype* B, dtype *u, dtype *f);
 void GenSparseMatrixOnline(size_m x, size_m y, size_m z, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
-void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
+void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
 map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level);
 map<vector<int>, dtype> dense_to_CSR(int m, int n, dtype *A, int lda, int *ia, int *ja, dtype *values);
 map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level);
 void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dtype* AR, int ldar);
 void shift_values(int rows, int *ia, int shift_non_zeros, int non_zeros, int *ja, int shift_columns);
+void SetPml(int blk, size_m x, size_m y, int n, dtype* alpX, dtype* alpY);
 
 void count_dense_elements(int m, int n, double *A, int lda, int& non_zeros);
+void compare_vec(int size, dtype* v1, dtype* v2);
 
 // Queue
 void init(struct my_queue* &q);

@@ -830,8 +830,11 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	}
 
 	cmnode *DCstr;
+	dtype *alpX = alloc_arr<dtype>(n + 2);
+	dtype *alpY = alloc_arr<dtype>(n + 2);
+	SetPml(0, x, y, n, alpX, alpY);
 	tt = omp_get_wtime();
-	GenerateDiagonal1DBlock(0, x, y, DD, lddd);
+	GenerateDiagonal1DBlock(0, x, y, DD, lddd, alpX, alpY);
 
 	SymRecCompressStruct(n, DD, lddd, DCstr, smallsize, eps, "SVD");
 	tt = omp_get_wtime() - tt;
@@ -843,21 +846,26 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	tt = omp_get_wtime() - tt;
 	if (compare_str(7, bench, "display")) printf("Computing G(1) time: %lf\n", tt);
 
-	printf("Block %d. ", 0);
+	//printf("Block %d. ", 0);
 	//	Test_RankEqual(DCstr, Gstr[0]);
 
 	FreeNodes(n, DCstr, smallsize);
 	free_arr(DD);
+	free_arr(alpX);
+	free_arr(alpY);
 
 	for (int k = 1; k < nbr; k++)
 	{
 		dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
+		dtype *alpX = alloc_arr<dtype>(n + 2);
+		dtype *alpY = alloc_arr<dtype>(n + 2);
 		cmnode *DCstr, *TDstr, *TD1str;
 
 		//	printf("Block %d. ", k);
+		SetPml(k, x, y, n, alpX, alpY);
 
 		tt = omp_get_wtime();
-		GenerateDiagonal1DBlock(k, x, y, DD, lddd);
+		GenerateDiagonal1DBlock(k, x, y, DD, lddd, alpX, alpY);
 		SymRecCompressStruct(n, DD, lddd, DCstr, smallsize, eps, "SVD");
 		tt = omp_get_wtime() - tt;
 		if (compare_str(7, bench, "display")) printf("Compressing D(%d) time: %lf\n", k, tt);
@@ -885,6 +893,8 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 		FreeNodes(n, TDstr, smallsize);
 		FreeNodes(n, TD1str, smallsize);
 		free(DD);
+		free_arr(alpX);
+		free_arr(alpY);
 	}
 
 	if (compare_str(7, bench, "display"))
