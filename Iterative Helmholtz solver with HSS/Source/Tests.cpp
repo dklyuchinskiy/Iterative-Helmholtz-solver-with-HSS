@@ -252,9 +252,9 @@ void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, i
 void Test_LowRankApproxStruct(int m, int n, double eps, char *method)
 {
 	// A - matrix in dense order
-	dtype *A = alloc_arr<dtype>(m * n);
-	dtype *A_init = alloc_arr<dtype>(m * n);
-	dtype *A_rec = alloc_arr<dtype>(m * n);
+	dtype *A = alloc_arr2<dtype>(m * n);
+	dtype *A_init = alloc_arr2<dtype>(m * n);
+	dtype *A_rec = alloc_arr2<dtype>(m * n);
 	char str[255];
 
 	int lda = m;
@@ -301,17 +301,14 @@ void Test_SymRecCompressStruct(int n, double eps, char *method, int smallsize)
 	char frob = 'F';
 	double norm = 0;
 
-	dtype *H = alloc_arr<dtype>(n * n); // init
-	dtype *H1 = alloc_arr<dtype>(n * n); // compressed
+	dtype *H = alloc_arr2<dtype>(n * n); // init
+	dtype *H1 = alloc_arr2<dtype>(n * n); // compressed
 	dtype *H2 = alloc_arr<dtype>(n * n); // recovered init
 
 	int ldh = n;
-	for (int j = 0; j < n; j++)
-		for (int i = 0; i < n; i++)
-		{
-			H[i + ldh * j] = 1.0 / (i + j + 1);
-			H1[i + ldh * j] = 1.0 / (i + j + 1);
-		}
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
 
 #ifdef DEBUG
 	print(n, n, H1, ldh, "H1");
@@ -339,18 +336,18 @@ void Test_SymRecCompressStruct(int n, double eps, char *method, int smallsize)
 	AssertLess(norm, eps, str);
 
 	FreeNodes(n, H1str, smallsize);
-	free_arr<dtype>(H);
-	free_arr<dtype>(H2);
-	free_arr<dtype>(H1);
+	free_arr(H);
+	free_arr(H2);
+	free_arr(H1);
 }
 
 void Test_DiagMultStruct(int n, double eps, char *method, int smallsize)
 {
 	//printf("*****Test for DiagMultStruct  n = %d ******* ", n);
-	dtype *Hd = alloc_arr<dtype>(n * n); // diagonal Hd = D * H * D
-	dtype *H1 = alloc_arr<dtype>(n * n); // compressed H
-	dtype *H2 = alloc_arr<dtype>(n * n); // recovered H after D * H1 * D
-	dtype *d = alloc_arr<dtype>(n);
+	dtype *Hd = alloc_arr2<dtype>(n * n); // diagonal Hd = D * H * D
+	dtype *H1 = alloc_arr2<dtype>(n * n); // compressed H
+	dtype *H2 = alloc_arr2<dtype>(n * n); // recovered H after D * H1 * D
+	dtype *d = alloc_arr2<dtype>(n);
 	char str[255];
 
 	double norm = 0;
@@ -361,13 +358,14 @@ void Test_DiagMultStruct(int n, double eps, char *method, int smallsize)
 		d[j] = j + 1;
 	}
 
+	Hilbert(n, n, H1, ldh);
+	Hilbert(n, n, Hd, ldh);
+
 	for (int j = 0; j < n; j++)
 		for (int i = 0; i < n; i++)
 		{
-			Hd[i + ldh * j] = 1.0 / (i + j + 1);
 			Hd[i + ldh * j] *= d[j];
 			Hd[i + ldh * j] *= d[i];
-			H1[i + ldh * j] = 1.0 / (i + j + 1);
 		}
 #ifdef DEBUG
 	print(n, n, H1, ldh, "Initial H");
@@ -395,10 +393,10 @@ void Test_DiagMultStruct(int n, double eps, char *method, int smallsize)
 	AssertLess(norm, eps, str);
 
 	FreeNodes(n, HCstr, smallsize);
-	free_arr<dtype>(Hd); // diagonal Hd = D * H * D
-	free_arr<dtype>(H1); // compressed H
-	free_arr<dtype>(H2); // recovered H after D * H1 * D
-	free_arr<dtype>(d);
+	free_arr(Hd); // diagonal Hd = D * H * D
+	free_arr(H1); // compressed H
+	free_arr(H2); // recovered H after D * H1 * D
+	free_arr(d);
 }
 
 /* Тест на сравнение результатов умножения Y = H * X сжимаемой матрицы H на произвольную X.
@@ -406,10 +404,10 @@ void Test_DiagMultStruct(int n, double eps, char *method, int smallsize)
 void Test_RecMultLStruct(int n, int k, double eps, char *method, int smallsize)
 {
 	//printf("*****Test for RecMultLStruct  n = %d k = %d ******* ", n, k);
-	dtype *H = alloc_arr<dtype>(n * n); // init and compressed
-	dtype *X = alloc_arr<dtype>(n * k);
-	dtype *Y = alloc_arr<dtype>(n * k); // init Y
-	dtype *Y1 = alloc_arr<dtype>(n * k); // after multiplication woth compressed
+	dtype *H = alloc_arr2<dtype>(n * n); // init and compressed
+	dtype *X = alloc_arr2<dtype>(n * k);
+	dtype *Y = alloc_arr2<dtype>(n * k); // init Y
+	dtype *Y1 = alloc_arr2<dtype>(n * k); // after multiplication woth compressed
 	char str[255];
 
 	double norm = 0;
@@ -420,15 +418,8 @@ void Test_RecMultLStruct(int n, int k, double eps, char *method, int smallsize)
 	int ldy = n;
 	int ldx = n;
 
-	for (int i = 0; i < n; i++)
-	{
-		for (int j = 0; j < n; j++)
-			H[i + ldh * j] = 1.0 / (i + j + 1);
-
-		for (int j = 0; j < k; j++)
-			X[i + ldx * j] = 1.0 / (i + j + 1);
-	
-	}
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, k, X, ldx);
 
 	zgemm("No", "No", &n, &k, &n, &alpha, H, &ldh, X, &ldx, &beta, Y, &ldy);
 
@@ -455,35 +446,35 @@ void Test_RecMultLStruct(int n, int k, double eps, char *method, int smallsize)
 #endif
 
 	FreeNodes(n, Hstr, smallsize);
-	free_arr<dtype>(H);
-	free_arr<dtype>(X);
-	free_arr<dtype>(Y);
-	free_arr<dtype>(Y1);
+	free_arr(H);
+	free_arr(X);
+	free_arr(Y);
+	free_arr(Y1);
 }
 
 void Test_AddStruct(int n, dtype alpha, dtype beta, double eps, char *method, int smallsize)
 {
 	//printf("*****Test for Add n = %d ******* ", n);
-	dtype *H1 = alloc_arr<dtype>(n * n);
-	dtype *H2 = alloc_arr<dtype>(n * n);
-	dtype *G = alloc_arr<dtype>(n * n);
-	dtype *H1c = alloc_arr<dtype>(n * n);
-	dtype *H2c = alloc_arr<dtype>(n * n);
-	dtype *Gc = alloc_arr<dtype>(n * n);
-	dtype *GcR = alloc_arr<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	dtype *G = alloc_arr2<dtype>(n * n);
+	dtype *H1c = alloc_arr2<dtype>(n * n);
+	dtype *H2c = alloc_arr2<dtype>(n * n);
+	dtype *GcR = alloc_arr2<dtype>(n * n);
 	char str[255];
 
 	int ldh = n;
 	int ldg = n;
 	double norm = 0;
 
+	Hilbert(n, n, H1, ldh);
+	Hilbert(n, n, H1c, ldh);
+
 #pragma omp parallel for simd schedule(simd:static)
 	for (int j = 0; j < n; j++)
 		for (int i = 0; i < n; i++)
 		{
-			H1[i + ldh * j] = 1.0 / (i + j + 1);
 			H2[i + ldh * j] = 1.0 / (i*i + j*j + 1);
-			H1c[i + ldh * j] = 1.0 / (i + j + 1);
 			H2c[i + ldh * j] = 1.0 / (i*i + j*j + 1);
 		}
 
@@ -528,7 +519,6 @@ void Test_AddStruct(int n, dtype alpha, dtype beta, double eps, char *method, in
 	free_arr(G);
 	free_arr(H1c);
 	free_arr(H2c);
-	free_arr(Gc);
 	free_arr(GcR);
 }
 
@@ -536,13 +526,12 @@ void Test_AddStruct(int n, dtype alpha, dtype beta, double eps, char *method, in
 void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* method, int smallsize)
 {
 	//printf("*****Test for SymCompUpdate2Struct  n = %d k = %d ***** ", n, k);
-	dtype *B = alloc_arr<dtype>(n * n); int ldb = n;
 	dtype *B_rec = alloc_arr<dtype>(n * n);
-	dtype *Y = alloc_arr<dtype>(k * k); int ldy = k;
-	dtype *V = alloc_arr<dtype>(n * k); int ldv = n; int ldvtr = k;
-	dtype *HC = alloc_arr<dtype>(n * n); int ldh = n;
-	dtype *H = alloc_arr<dtype>(n * n);
-	dtype *C = alloc_arr<dtype>(n * k); int ldc = n;
+	dtype *Y = alloc_arr2<dtype>(k * k); int ldy = k;
+	dtype *V = alloc_arr2<dtype>(n * k); int ldv = n; int ldvtr = k;
+	dtype *HC = alloc_arr2<dtype>(n * n); int ldh = n;
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *C = alloc_arr2<dtype>(n * k); int ldc = n;
 	char str[255];
 
 	dtype alpha_one = 1.0;
@@ -551,8 +540,11 @@ void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* meth
 	double norm = 0;
 
 
-	Hilbert(n, HC, ldh);
-	Hilbert(n, H, ldh);
+	Hilbert(n, n, HC, ldh);
+	Hilbert(n, n, H, ldh);
+
+	Clear(k, k, Y, ldy);
+	Clear(n, k, V, ldv);
 
 #pragma omp parallel for simd schedule(simd:static)
 	for (int i = 0; i < k; i++)
@@ -589,7 +581,6 @@ void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* meth
 
 	FreeNodes(n, Bstr, smallsize);
 	FreeNodes(n, HCstr, smallsize);
-	free_arr(B);
 	free_arr(B_rec);
 	free_arr(H);
 	free_arr(HC);
@@ -601,11 +592,10 @@ void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* meth
 void Test_SymCompRecInvStruct(int n, double eps, char *method, int smallsize)
 {
 	//printf("***** Test_SymCompRecInvStruct n = %d eps = %lf ****", n, eps);
-	dtype *H = alloc_arr<dtype>(n * n);
-	dtype *Hc = alloc_arr<dtype>(n * n);
-	dtype *Bc = alloc_arr<dtype>(n * n);
-	dtype *Brec = alloc_arr<dtype>(n * n);
-	dtype *Y = alloc_arr<dtype>(n * n);
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *Hc = alloc_arr2<dtype>(n * n);
+	dtype *Brec = alloc_arr2<dtype>(n * n);
+	dtype *Y = alloc_arr2<dtype>(n * n);
 	char str[255];
 
 	int ldh = n;
@@ -616,8 +606,8 @@ void Test_SymCompRecInvStruct(int n, double eps, char *method, int smallsize)
 	dtype beta_one = 1.0;
 	double norm = 0;
 
-	Hilbert(n, H, ldh);
-	Hilbert(n, Hc, ldh);
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, Hc, ldh);
 
 	// for stability
 	for (int i = 0; i < n; i++)
@@ -647,16 +637,15 @@ void Test_SymCompRecInvStruct(int n, double eps, char *method, int smallsize)
 	FreeNodes(n, BCstr, smallsize);
 	free_arr(H);
 	free_arr(Hc);
-	free_arr(Bc);
 	free_arr(Brec);
 	free_arr(Y);
 }
 
 void Test_CopyStruct(int n, double eps, char *method, int smallsize)
 {
-	dtype *H = alloc_arr<dtype>(n * n);
-	dtype *H1 = alloc_arr<dtype>(n * n);
-	dtype *H2 = alloc_arr<dtype>(n * n);
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
 	char str[255];
 
 	double norm = 0;
@@ -664,8 +653,8 @@ void Test_CopyStruct(int n, double eps, char *method, int smallsize)
 
 	//printf("***Test CopyStruct n = %d ", n);
 
-	Hilbert(n, H, ldh);
-	Hilbert(n, H1, ldh);
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
 
 	cmnode* Hstr, *Hcopy_str;
 	SymRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
@@ -763,13 +752,75 @@ void Test_TransferBlock3Diag_to_CSR(int n1, int n2, dcsr* Dcsr, dtype* x_orig, d
 	int n = n1;
 	int size = n * n2;
 	double RelRes = 0;
-	dtype *g = alloc_arr<dtype>(size);
+	dtype *g = alloc_arr2<dtype>(size);
 	ResidCSR(n1, n2, Dcsr, x_orig, f, g, RelRes);
 
 	if (RelRes < eps) printf("Norm %10.8e < eps %10.8lf: PASSED\n", RelRes, eps);
 	else printf("Norm %10.8lf > eps %10.8e : FAILED\n", RelRes, eps);
 
 	free_arr(g);
+}
+
+
+void Test_DirSolveFactDiagStructBlockRanks(size_m x, size_m y, cmnode** Gstr)
+{
+	printf("----------Trees information-----------\n");
+	int *size = alloc_arr<int>(y.n);
+	int *depth = alloc_arr<int>(y.n);
+
+	double time = omp_get_wtime();
+#pragma omp parallel
+	{
+#pragma omp single
+		for (int i = 0; i < y.n; i++)
+		{
+			size[i] = TreeSize(Gstr[i]);
+			depth[i] = MaxDepth(Gstr[i]);
+		}
+	}
+	double result = omp_get_wtime() - time;
+	printf("Computational time of TreeSize and MaxDepth for all %d trees: %lf\n", y.n, result);
+
+	for (int i = 0; i < y.n; i++)
+	{
+		printf("For block %2d. Size: %d, MaxDepth: %d, Ranks: ", i, size[i], depth[i]);
+		PrintRanksInWidthList(Gstr[i]);
+		printf("\n");
+	}
+
+	free(size);
+	free(depth);
+
+}
+
+void Test_NonZeroElementsInFactors(size_m x, size_m y, cmnode **Gstr, dtype* B, double thresh, int smallsize)
+{
+	long long non_zeros_exact = 0;
+	long long non_zeros_HSS = 0;
+
+	non_zeros_exact = (x.n * x.n) * y.n + 2 * x.n * (y.n - 1);
+
+	for(int k = 0; k < y.n; k++)
+		non_zeros_HSS += CountElementsInMatrixTree(x.n, Gstr[k]);
+
+	non_zeros_HSS += 2 * (y.n - 1) * x.n;
+
+	int compr_size = x.n / smallsize;
+	int compr_level = log(compr_size) / log(2);
+	int loc_size = x.n;
+	long long zeros_ideal = 0;
+
+	for (int j = 0; j < compr_level; j++)
+	{
+		loc_size = ceil(loc_size / 2.0);
+		compr_size = ceil(x.n / loc_size);
+		zeros_ideal += (loc_size * loc_size * compr_size) * y.n;
+	}
+
+	printf("Compression level: %d Compression size: %d\n", compr_level, compr_size);
+	printf("non_zeros_exact: %ld\nnon_zeros_HSS: %ld\n", non_zeros_exact, non_zeros_HSS);
+	printf("coefficient of compression: %lf (ideal: %lf)\n",  (double)non_zeros_exact / non_zeros_HSS, (double)non_zeros_exact/(non_zeros_exact - zeros_ideal));
+	
 }
 
 
@@ -805,37 +856,6 @@ void Test_DirSolveFactDiagStructConvergence(size_m x, size_m y, size_m z, mnode*
 		free_arr(&GR2);
 		free_arr(&GRL);
 	}
-}
-
-void Test_DirSolveFactDiagStructBlockRanks(size_m x, size_m y, size_m z, mnode** Gstr)
-{
-	printf("----------Trees information-----------\n");
-	int *size = (int*)malloc(x.n * sizeof(int));
-	int *depth = (int*)malloc(y.n * sizeof(int));
-
-	double time = omp_get_wtime();
-#pragma omp parallel
-	{
-#pragma omp single
-		for (int i = 0; i < z.n; i++)
-		{
-			size[i] = TreeSize(Gstr[i]);
-			depth[i] = MaxDepth(Gstr[i]);
-		}
-	}
-	double result = omp_get_wtime() - time;
-	printf("Computational time of TreeSize and MaxDepth for all %d trees: %lf\n", x.n, result);
-
-	for (int i = 0; i < z.n; i++)
-	{
-		printf("For block %2d. Size: %d, MaxDepth: %d, Ranks: ", i, size[i], depth[i]);
-		PrintRanksInWidthList(Gstr[i]);
-		printf("\n");
-	}
-
-	free(size);
-	free(depth);
-
 }
 
 void Test_RankEqual(mnode *Astr, mnode *Bstr)

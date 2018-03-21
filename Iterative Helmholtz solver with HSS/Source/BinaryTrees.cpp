@@ -15,7 +15,7 @@ In addition, the computation of Size, MaxDepth
 and Ranks of the matrix tree is presented here.
 ********************************************************/
 
-int TreeSize(mnode* root)
+int TreeSize(cmnode* root)
 {
 	int size = 0;
 
@@ -40,7 +40,7 @@ int TreeSize(mnode* root)
 
 }
 
-int MaxDepth(mnode* root)
+int MaxDepth(cmnode* root)
 {
 	if (root == NULL)
 	{
@@ -64,6 +64,25 @@ int MaxDepth(mnode* root)
 
 }
 
+int CountElementsInMatrixTree(int n, cmnode* root)
+{
+	if (root->left == NULL && root->right == NULL)
+	{
+		return n * n;
+	}
+	else
+	{
+		int n2 = ceil(n / 2.0);
+		int n1 = n - n2;
+		int ld = 0, rd = 0;
+
+		if (root->left != NULL) ld = CountElementsInMatrixTree(n1, root->left);
+		if (root->right != NULL) rd = CountElementsInMatrixTree(n2, root->right);
+
+		return ld + rd + root->p * (n1 + n2);
+	}
+}
+
 void PrintRanks(mnode* root)
 {
 	if (root == NULL)
@@ -78,18 +97,18 @@ void PrintRanks(mnode* root)
 	}
 }
 
-void PrintRanksInWidth(mnode *root)
+void PrintRanksInWidth(cmnode *root)
 {
 	if (root == NULL)
 	{
 		return;
 	}
-	queue<mnode*> q; // Создаем очередь
+	queue<cmnode*> q; // Создаем очередь
 	q.push(root); // Вставляем корень в очередь
 
 	while (!q.empty()) // пока очередь не пуста
 	{
-		mnode* temp = q.front(); // Берем первый элемент в очереди
+		cmnode* temp = q.front(); // Берем первый элемент в очереди
 		q.pop();  // Удаляем первый элемент в очереди
 		printf("%3d ", temp->p); // Печатаем значение первого элемента в очереди
 
@@ -102,7 +121,7 @@ void PrintRanksInWidth(mnode *root)
 }
 
 
-void PrintRanksInWidthList(mnode *root)
+void PrintRanksInWidthList(cmnode *root)
 {
 	if (root == NULL)
 	{
@@ -117,7 +136,7 @@ void PrintRanksInWidthList(mnode *root)
 #endif
 	while (!my_empty(q)) // пока очередь не пуста
 	{
-		mnode* temp = front(q); // Берем первый элемент в очереди
+		cmnode* temp = front(q); // Берем первый элемент в очереди
 		pop(q);  // Удаляем первый элемент в очереди
 		printf("%3d ", temp->p); // Печатаем значение первого элемента в очереди
 
@@ -132,7 +151,7 @@ void PrintRanksInWidthList(mnode *root)
 	}
 }
 
-void PrintStruct(int n, mnode *root)
+void PrintStruct(int n, cmnode *root)
 {
 	if (root == NULL)
 	{
@@ -166,25 +185,24 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 
 	if (compare_str(3, method, "SVD"))
 	{
-#ifndef FULL_SVD
-		double *VT = alloc_arr(n1 * n1); int ldvt = n1;
-		double *S = alloc_arr(mn);
-		dgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, &wkopt, &lwork, &info);
-		lwork = (int)wkopt;
-		double *work = alloc_arr(lwork);
-
-		// A = U1 * S * V1
-		dgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, work, &lwork, &info);
-#else
 		dtype *VT = (dtype*)malloc(n1 * n1 * sizeof(dtype)); int ldvt = n1;
 		double *S = (double*)malloc(mn * sizeof(double));
+#ifndef FULL_SVD
+		zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
+		lwork = (int)wkopt.real();
+		dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
+		double *rwork = (double*)malloc(5 * mn * sizeof(double));
+
+		// A = U1 * S * V1
+		zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, work, &lwork, rwork, &info);
+#else
 		dtype *U = (dtype*)malloc(n2 * n2 * sizeof(dtype)); int ldu = n2;
 
 		// Workspace Query
 		zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
 		lwork = (int)wkopt.real();
 		dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
-		double *rwork = alloc_arr<double>(5 * mn);
+		double *rwork = (double*)malloc(5 * mn * sizeof(double));
 
 		// A = U1 * S * V1
 		zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, work, &lwork, rwork, &info);
@@ -192,18 +210,17 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 
 		for (int j = 0; j < mn; j++)
 		{
-			double s1 = S[j] / S[0];
-			if (s1 < eps)
+			if (S[j] / S[0] < eps)
 			{
 				break;
 			}
 			Astr->p = j + 1;
 #ifndef FULL_SVD
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 			for (int i = 0; i < n2; i++)
 				A[i + lda * j] *= S[j];
 #else
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 			for (int i = 0; i < n2; i++)
 				U[i + ldu * j] *= S[j];
 		
@@ -215,8 +232,8 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 		Astr->VT = (dtype*)malloc(Astr->p * n1 * sizeof(dtype));
 
 #ifndef FULL_SVD
-		dlacpy("All", &n2, &Astr->p, A, &lda, Astr->U, &n2);
-		dlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
+		zlacpy("All", &n2, &Astr->p, A, &lda, Astr->U, &n2);
+		zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
 #else
 		zlacpy("All", &n2, &Astr->p, U, &ldu, Astr->U, &n2);
 		zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
@@ -232,7 +249,10 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 		free_arr(work);
 		free_arr(rwork);
 		free_arr(S);
+
+#ifdef FULL_SVD
 		free_arr(U);
+#endif
 	}
 	return;
 }
@@ -275,7 +295,7 @@ void DiagMultStruct(int n, cmnode* Astr, dtype *d, int smallsize)
 {
 	if (n <= smallsize)
 	{
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(runtime)
 		for (int j = 0; j < n; j++)
 #pragma omp simd
 			for (int i = 0; i < n; i++)
@@ -293,14 +313,14 @@ void DiagMultStruct(int n, cmnode* Astr, dtype *d, int smallsize)
 		DiagMultStruct(n2, Astr->right, &d[n1], smallsize);
 
 		// D * U - каждая i-ая строка U умножается на элемент вектора d[i]
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(runtime)
 		for (int j = 0; j < Astr->p; j++)
 #pragma omp simd
 			for (int i = 0; i < n2; i++)
 				Astr->U[i + n2 * j] *= d[n1 + i]; // вторая часть массива D
 
 												  // VT * D - каждый j-ый столбец умножается на элемент вектора d[j]
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(runtime)
 		for (int j = 0; j < n1; j++)
 #pragma omp simd
 			for (int i = 0; i < Astr->p; i++)
@@ -324,12 +344,12 @@ void RecMultLStruct(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int
 	{
 		int n2 = (int)ceil(n / 2.0); // rounding up
 		int n1 = n - n2;
-		dtype *Y12 = alloc_arr<dtype>(n1 * m); int ldy12 = n1;
-		dtype *Y21 = alloc_arr<dtype>(n2 * m); int ldy21 = n2;
-		dtype *Y11 = alloc_arr<dtype>(n1 * m); int ldy11 = n1;
-		dtype *Y22 = alloc_arr<dtype>(n2 * m); int ldy22 = n2;
-		dtype *inter1 = alloc_arr<dtype>(n2 * n1); // column major - lda = column
-		dtype *inter2 = alloc_arr<dtype>(n1 * n2);
+		dtype *Y12 = alloc_arr2<dtype>(n1 * m); int ldy12 = n1;
+		dtype *Y21 = alloc_arr2<dtype>(n2 * m); int ldy21 = n2;
+		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
+		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
+		dtype *inter1 = alloc_arr2<dtype>(n2 * n1); // column major - lda = column
+		dtype *inter2 = alloc_arr2<dtype>(n1 * n2);
 
 		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
 		zgemm("No", "No", &n2, &n1, &Astr->p, &alpha, Astr->U, &n2, Astr->VT, &Astr->p, &beta, inter1, &n2);
@@ -387,17 +407,17 @@ void AddStruct(int n, dtype alpha, cmnode* Astr, dtype beta, cmnode* Bstr, cmnod
 		int n1 = n - n2;
 		int n1_dbl = Astr->p + Bstr->p;
 
-		dtype *Y21 = alloc_arr<dtype>(n2 * n1_dbl); int ldy21 = n2;
-		dtype *Y12 = alloc_arr<dtype>(n1 * n1_dbl); int ldy12 = n1;
+		dtype *Y21 = alloc_arr2<dtype>(n2 * n1_dbl); int ldy21 = n2;
+		dtype *Y12 = alloc_arr2<dtype>(n1 * n1_dbl); int ldy12 = n1;
 
-		dtype *V21 = alloc_arr<dtype>(n2 * n1_dbl); int ldv21 = n2;
-		dtype *V12 = alloc_arr<dtype>(n1 * n1_dbl); int ldv12 = n1;
+		dtype *V21 = alloc_arr2<dtype>(n2 * n1_dbl); int ldv21 = n2;
+		dtype *V12 = alloc_arr2<dtype>(n1 * n1_dbl); int ldv12 = n1;
 
-		dtype *AU = alloc_arr<dtype>(n2 * Astr->p); int ldau = n2;
-		dtype *BU = alloc_arr<dtype>(n2 * Bstr->p); int ldbu = n2;
+		dtype *AU = alloc_arr2<dtype>(n2 * Astr->p); int ldau = n2;
+		dtype *BU = alloc_arr2<dtype>(n2 * Bstr->p); int ldbu = n2;
 
-		dtype *AV = alloc_arr<dtype>(n1 * Astr->p); int ldav = n1;
-		dtype *BV = alloc_arr<dtype>(n1 * Bstr->p); int ldbv = n1;
+		dtype *AV = alloc_arr2<dtype>(n1 * Astr->p); int ldav = n1;
+		dtype *BV = alloc_arr2<dtype>(n1 * Bstr->p); int ldbv = n1;
 
 		// Filling AV and BV - workspaces
 		Mat_Trans(Astr->p, n1, Astr->VT, Astr->p, AV, ldav);
@@ -436,18 +456,18 @@ void AddStruct(int n, dtype alpha, cmnode* Astr, dtype beta, cmnode* Bstr, cmnod
 		p2 = Y12str->p;
 
 		// Y = V21'*V12;
-		dtype *Y = alloc_arr<dtype>(p1 * p2);
+		dtype *Y = alloc_arr2<dtype>(p1 * p2);
 		zgemm("No", "Trans", &p1, &p2, &n1_dbl, &alpha_loc, V21, &ldv21, V12, &ldv12, &beta_loc, Y, &p1);
 
 		// C{2,1} = U21*Y;   
-		Cstr->U = alloc_arr<dtype>(n2 * p2);
+		Cstr->U = alloc_arr2<dtype>(n2 * p2);
 		zgemm("No", "No", &n2, &p2, &p1, &alpha_loc, Y21, &ldy21, Y, &p1, &beta_loc, Cstr->U, &n2); // mn
 
 		// C{1,2} = U12';
-		dtype *Y12_tr = alloc_arr<dtype>(p2 * n1);
+		dtype *Y12_tr = alloc_arr2<dtype>(p2 * n1);
 		Mat_Trans(n1, p2, Y12, ldy12, Y12_tr, p2);
 
-		Cstr->VT = alloc_arr<dtype>(p2 * n1);  Cstr->p = p2;
+		Cstr->VT = alloc_arr2<dtype>(p2 * n1);  Cstr->p = p2;
 		zlacpy("All", &p2, &n1, Y12_tr, &p2, Cstr->VT, &p2);
 
 		AddStruct(n1, alpha, Astr->left, beta, Bstr->left, Cstr->left, smallsize, eps, method);
@@ -494,11 +514,11 @@ void SymCompUpdate2Struct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int
 		// X = X + alpha * V * Y * VT
 
 		// C = V * Y
-		dtype *C = alloc_arr<dtype>(n * k); int ldc = n;
+		dtype *C = alloc_arr2<dtype>(n * k); int ldc = n;
 		zsymm("Right", "Up", &n, &k, &alpha_one, Y, &ldy, V, &ldv, &beta_zero, C, &ldc);
 
 		// Copy Astr->A to A_init
-		dtype *A_init = alloc_arr<dtype>(n * n); int lda = n;
+		dtype *A_init = alloc_arr2<dtype>(n * n); int lda = n;
 		zlacpy("All", &n, &n, Astr->A, &lda, A_init, &lda);
 
 		// X = X + alpha * C * Vt
@@ -519,16 +539,16 @@ void SymCompUpdate2Struct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int
 		int nk = Astr->p + k;
 		// for this division n2 > n1 we can store a low memory
 
-		dtype *Y12 = alloc_arr<dtype>(n1 * nk); int ldy12 = n1;
-		dtype *Y21 = alloc_arr<dtype>(n2 * nk); int ldy21 = n2;
+		dtype *Y12 = alloc_arr2<dtype>(n1 * nk); int ldy12 = n1;
+		dtype *Y21 = alloc_arr2<dtype>(n2 * nk); int ldy21 = n2;
 
-		dtype *V_up = alloc_arr<dtype>(n1 * k); int ldvup = n1;
-		dtype *A12 = alloc_arr<dtype>(n1 * Astr->p); int lda12 = n1;
+		dtype *V_up = alloc_arr2<dtype>(n1 * k); int ldvup = n1;
+		dtype *A12 = alloc_arr2<dtype>(n1 * Astr->p); int lda12 = n1;
 
-		dtype *VY = alloc_arr<dtype>(n2 * k); int ldvy = n2;
+		dtype *VY = alloc_arr2<dtype>(n2 * k); int ldvy = n2;
 
-		dtype *V12 = alloc_arr<dtype>(n1 * nk); int ldv12 = n1;
-		dtype *V21 = alloc_arr<dtype>(n2 * nk); int ldv21 = n2;
+		dtype *V12 = alloc_arr2<dtype>(n1 * nk); int ldv12 = n1;
+		dtype *V21 = alloc_arr2<dtype>(n2 * nk); int ldv21 = n2;
 
 		zgemm("No", "No", &n2, &k, &k, &alpha, &V[n1 + ldv * 0], &ldv, Y, &ldy, &beta_zero, VY, &ldvy);
 
@@ -565,17 +585,17 @@ void SymCompUpdate2Struct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int
 		Bstr->p = p2;
 
 		// V21 * Y12
-		dtype*VV = alloc_arr<dtype>(p1 * p2);
-		dtype *V_tr = alloc_arr<dtype>(nk * p2);
+		dtype *VV = alloc_arr2<dtype>(p1 * p2);
+		dtype *V_tr = alloc_arr2<dtype>(nk * p2);
 		Mat_Trans(p2, nk, V12, ldv12, V_tr, nk);
 		zgemm("No", "No", &p1, &p2, &nk, &alpha_one, V21, &ldv21, V_tr, &nk, &beta_zero, VV, &p1);
 
 		// B{2,1} = U21*(V21'*V12);
-		Bstr->U = alloc_arr<dtype>(n2 * p2);
+		Bstr->U = alloc_arr2<dtype>(n2 * p2);
 		zgemm("No", "No", &n2, &p2, &p1, &alpha_one, Y21, &ldy21, VV, &p1, &beta_zero, Bstr->U, &n2);
 
 		// B{1,2} = U12;
-		Bstr->VT = alloc_arr<dtype>(p2 * n1);
+		Bstr->VT = alloc_arr2<dtype>(p2 * n1);
 		Mat_Trans(n1, p2, Y12, ldy12, Bstr->VT, p2);
 
 		// B{1,1} = SymCompUpdate2 (A{1,1}, Y, V(1:n1,:), alpha, eps, method);
@@ -615,8 +635,8 @@ void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, doub
 
 	if (n <= smallsize)
 	{
-		int *ipiv = alloc_arr<int>(n);
-		dtype *A_init = alloc_arr<dtype>(n * n);
+		int *ipiv = alloc_arr2<int>(n);
+		dtype *A_init = alloc_arr2<dtype>(n * n);
 
 		zlacpy("All", &n, &n, Astr->A, &n, A_init, &n);
 
@@ -627,7 +647,7 @@ void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, doub
 		zgetri(&n, A_init, &n, ipiv, &wquery, &lwork, &info);
 
 		lwork = (int)wquery.real();
-		dtype *work = alloc_arr<dtype>(lwork);
+		dtype *work = alloc_arr2<dtype>(lwork);
 
 		// inversion of A
 		zgetri(&n, A_init, &n, ipiv, work, &lwork, &info);
@@ -646,18 +666,18 @@ void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, doub
 		int n1 = n - n2;
 
 		Bstr->p = Astr->p;
-		dtype *X11 = alloc_arr<dtype>(n1 * n1); int ldx11 = n1;
-		dtype *X22 = alloc_arr<dtype>(n2 * n2); int ldx22 = n2;
-		dtype *V = alloc_arr<dtype>(n1 * Astr->p); int ldv = n1;
-		dtype *B12 = alloc_arr<dtype>(n1 * Bstr->p); int ldb12 = n1;
-		dtype *Y = alloc_arr<dtype>(Astr->p * Bstr->p); int ldy = Astr->p;
+		dtype *X11 = alloc_arr2<dtype>(n1 * n1); int ldx11 = n1;
+		dtype *X22 = alloc_arr2<dtype>(n2 * n2); int ldx22 = n2;
+		dtype *V = alloc_arr2<dtype>(n1 * Astr->p); int ldv = n1;
+		dtype *B12 = alloc_arr2<dtype>(n1 * Bstr->p); int ldb12 = n1;
+		dtype *Y = alloc_arr2<dtype>(Astr->p * Bstr->p); int ldy = Astr->p;
 		cmnode *X11str, *X22str;
 
 		// Inversion of A22 to X22
 		SymCompRecInvStruct(n2, Astr->right, X22str, smallsize, eps, method);
 
 		// Save X22 * U to B{2,1}
-		Bstr->U = alloc_arr<dtype>(n2 * Bstr->p);
+		Bstr->U = alloc_arr2<dtype>(n2 * Bstr->p);
 		RecMultLStruct(n2, Bstr->p, X22str, Astr->U, n2, Bstr->U, n2, smallsize);
 
 		// Compute Y = UT * X22 * U = | A[2,1]T * B{2,1} | = | (p x n2) x (n2 x p)  = (p x p) |
@@ -675,7 +695,7 @@ void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, doub
 		mkl_zimatcopy('C', 'N', n1, Bstr->p, -1.0, B12, ldb12, ldb12);
 
 		// B{1,2} = transpose(B12)
-		Bstr->VT = alloc_arr<dtype>(Bstr->p * n1);
+		Bstr->VT = alloc_arr2<dtype>(Bstr->p * n1);
 		Mat_Trans(n1, Bstr->p, B12, ldb12, Bstr->VT, Bstr->p);
 
 		// Y = -(A{1,2})' * B{1,2} = -VT * (-X11 * V) = - VT * B12 = (p x n1) * (n1 x p)
@@ -765,8 +785,8 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 		printf("Solving time: %lf\n", tt);
 	}
 
-	dtype *g = alloc_arr<dtype>(size);
-	dtype *x1 = alloc_arr<dtype>(size);
+	dtype *g = alloc_arr2<dtype>(size);
+	dtype *x1 = alloc_arr2<dtype>(size);
 	RelRes = 1;
 
 	ResidCSR(x.n, y.n, Dcsr, x_sol, f, g, RelRes);
@@ -789,7 +809,7 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 
 				DirSolveFastDiagStruct(x.n, y.n, Gstr, B, g, x1, thresh, smallsize);
 
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 				for (int i = 0; i < size; i++)
 					x_sol[i] = x_sol[i] + x1[i];
 
@@ -819,7 +839,6 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	int n = x.n;
 	int nbr = y.n; // size of D is equal to nbr blocks by n elements
 	int size = n * nbr;
-	dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 	double tt;
 
 	if (compare_str(7, bench, "display"))
@@ -830,9 +849,12 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	}
 
 	cmnode *DCstr;
+	dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 	dtype *alpX = alloc_arr<dtype>(n + 2);
 	dtype *alpY = alloc_arr<dtype>(n + 2);
+
 	SetPml(0, x, y, n, alpX, alpY);
+	Clear(n, n, DD, lddd);
 	tt = omp_get_wtime();
 	GenerateDiagonal1DBlock(0, x, y, DD, lddd, alpX, alpY);
 
@@ -850,19 +872,19 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	//	Test_RankEqual(DCstr, Gstr[0]);
 
 	FreeNodes(n, DCstr, smallsize);
-	free_arr(DD);
-	free_arr(alpX);
-	free_arr(alpY);
 
 	for (int k = 1; k < nbr; k++)
 	{
-		dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
-		dtype *alpX = alloc_arr<dtype>(n + 2);
-		dtype *alpY = alloc_arr<dtype>(n + 2);
 		cmnode *DCstr, *TDstr, *TD1str;
 
+		// Clear matrix
+		Clear(n, n, DD, lddd);
+
 		//	printf("Block %d. ", k);
+		tt = omp_get_wtime();
 		SetPml(k, x, y, n, alpX, alpY);
+		tt = omp_get_wtime() - tt;
+		if (compare_str(7, bench, "display")) printf("Setting PML D(%d) time: %lf\n", k, tt);
 
 		tt = omp_get_wtime();
 		GenerateDiagonal1DBlock(k, x, y, DD, lddd, alpX, alpY);
@@ -886,15 +908,14 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 		tt = omp_get_wtime();
 		SymCompRecInvStruct(n, TDstr, Gstr[k], smallsize, eps, "SVD");
 		tt = omp_get_wtime() - tt;
-		if (compare_str(7, bench, "display")) printf("Computing G(%d) time: %lf\n\n", k, tt);
+		if (compare_str(7, bench, "display")) printf("Computing G(%d) time: %lf\n", k, tt);
 
-
+		tt = omp_get_wtime();
 		FreeNodes(n, DCstr, smallsize);
 		FreeNodes(n, TDstr, smallsize);
 		FreeNodes(n, TD1str, smallsize);
-		free(DD);
-		free_arr(alpX);
-		free_arr(alpY);
+		tt = omp_get_wtime() - tt;
+		if (compare_str(7, bench, "display")) printf("Memory deallocation G(%d) time: %lf\n\n", k, tt);
 	}
 
 	if (compare_str(7, bench, "display"))
@@ -903,6 +924,10 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 		printf("End of DirFactFastDiag\n");
 		printf("****************************\n");
 	}
+
+	free_arr(DD);
+	free_arr(alpX);
+	free_arr(alpY);
 
 }
 
@@ -914,7 +939,7 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	dtype *tb = alloc_arr<dtype>(size);
 	dtype *y = alloc_arr<dtype>(n);
 
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 	for (int i = 0; i < n; i++)
 		tb[i] = f[i];
 
@@ -923,7 +948,7 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 		RecMultLStruct(n, 1, Gstr[k - 1], &tb[ind(k - 1, n)], size, y, n, smallsize);
 		DenseDiagMult(n, &B[ind(k - 1, n)], y, y);
 
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 		for (int i = 0; i < n; i++)
 			tb[ind(k, n) + i] = f[ind(k, n) + i] - y[i];
 	}
@@ -934,7 +959,7 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	{
 		DenseDiagMult(n, &B[ind(k, n)], &x[ind(k + 1, n)], y);
 
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 		for (int i = 0; i < n; i++)
 			y[i] = tb[ind(k, n) + i] - y[i];
 
@@ -949,13 +974,13 @@ void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, doub
 {
 	int n = n1;
 	int size = n * n2;
-	dtype *f1 = alloc_arr<dtype>(size);
+	dtype *f1 = alloc_arr2<dtype>(size);
 	int ione = 1;
 
 	// Multiply matrix A in CSR format by vector x_sol to obtain f1
 	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, x_sol, f1);
 
-#pragma omp parallel for simd schedule(simd:static)
+#pragma omp parallel for simd schedule(runtime)
 	for (int i = 0; i < size; i++)
 		g[i] = f[i] - f1[i];
 
@@ -972,7 +997,7 @@ void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, doub
 
 void alloc_dense_node(int n, cmnode* &Cstr)
 {
-	Cstr->A = alloc_arr<dtype>(n * n);
+	Cstr->A = (dtype*)malloc(n * n * sizeof(dtype));
 	Cstr->p = -1;
 	Cstr->U = NULL;
 	Cstr->VT = NULL;
@@ -984,21 +1009,21 @@ void FreeNodes(int n, cmnode* &Astr, int smallsize)
 {
 	if (n <= smallsize)
 	{
-		free(Astr->A);
+		free_arr(Astr->A);
 	}
 	else
 	{
 		int n2 = (int)ceil(n / 2.0); // n2 > n1
 		int n1 = n - n2;
 
-		free(Astr->U);
-		free(Astr->VT);
+		free_arr(Astr->U);
+		free_arr(Astr->VT);
 
 		FreeNodes(n1, Astr->left, smallsize);
 		FreeNodes(n2, Astr->right, smallsize);
 	}
 
-	free(Astr);
+	free_arr(Astr);
 }
 
 void CopyStruct(int n, cmnode* Gstr, cmnode* &TD1str, int smallsize)
@@ -1015,8 +1040,8 @@ void CopyStruct(int n, cmnode* Gstr, cmnode* &TD1str, int smallsize)
 		int n1 = n - n2;
 
 		TD1str->p = Gstr->p;
-		TD1str->U = alloc_arr<dtype>(n2 * TD1str->p);
-		TD1str->VT = alloc_arr<dtype>(TD1str->p * n1);
+		TD1str->U = alloc_arr2<dtype>(n2 * TD1str->p);
+		TD1str->VT = alloc_arr2<dtype>(TD1str->p * n1);
 		zlacpy("All", &n2, &TD1str->p, Gstr->U, &n2, TD1str->U, &n2);
 		zlacpy("All", &TD1str->p, &n1, Gstr->VT, &TD1str->p, TD1str->VT, &TD1str->p);
 

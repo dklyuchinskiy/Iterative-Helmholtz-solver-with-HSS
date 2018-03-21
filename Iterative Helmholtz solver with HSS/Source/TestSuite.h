@@ -38,6 +38,7 @@ void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, i
 // Solver
 void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double thresh, int smallsize);
 void Test_TransferBlock3Diag_to_CSR(int n1, int n2, dcsr* Dcsr, dtype* x_orig, dtype *f, double eps);
+void Test_DirSolveFactDiagStructBlockRanks(size_m x, size_m y, cmnode** Gstr);
 
 #if 0
 
@@ -46,7 +47,7 @@ void Test_Dense_to_CSR(size_m x, size_m y, size_m z, int non_zeros_in_3diag, dou
 void Test_CompareColumnsOfMatrix(int n1, int n2, int n3, double* D, int ldd, double* B, dcsr* Dcsr, double thresh);
 
 void Test_DirSolveFactDiagStructConvergence(size_m x, size_m y, size_m z, mnode** Gstr, double thresh, int smallsize);
-void Test_DirSolveFactDiagStructBlockRanks(size_m x, size_m y, size_m z, mnode** Gstr);
+
 
 
 // TestOnline

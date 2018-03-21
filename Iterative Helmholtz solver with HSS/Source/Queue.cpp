@@ -21,7 +21,7 @@ bool my_empty(struct my_queue* q)
 	else return false;
 }
 
-void push(struct my_queue* &q, mnode* node)
+void push(struct my_queue* &q, cmnode* node)
 {
 	qlist *item = (qlist*)malloc(sizeof(qlist)); // просто перекидываем указатель по листу, память под node уже выделена на верхнем уровне
 	item->node = node;
@@ -71,9 +71,9 @@ void pop(struct my_queue* &q)
 	}
 }
 
-mnode* front(struct my_queue* q)
+cmnode* front(struct my_queue* q)
 {
-	mnode* x;
+	cmnode* x;
 	x = q->first->node;
 	return x;
 }

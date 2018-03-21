@@ -196,18 +196,20 @@ int main()
 {
 	//TestAll();
 	//system("pause");
+
 #if 1
-	int n1 = 420;		    // number of point across the directions
-	int n2 = 420;
+	int n1 = 800;		    // number of point across the directions
+	int n2 = 800;
 
 
 	int n = n1 + 2 * pml;				// size of blocks
 	int NB = n2 + 2 * pml;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
-	int smallsize = 50;
-	double thresh = 1e-6;	// stop level of algorithm by relative error
-	int ItRef = 200;		// Maximal number of iterations in refirement
-	char bench[255] = "no"; // parameter into solver to show internal results
+	int smallsize = 800;
+	double thresh = 1e-4;	// stop level of algorithm by relative error
+
+	int ItRef = 200;		// Maximal number of iterations in refinement
+	char bench[255] = "ydisplay"; // parameter into solver to show internal results
 	int sparse_size = n + 2 * (n - 1) + 2 * (n - n1);
 	int non_zeros_in_3diag = n + (n - 1) * 2 + (n - n1) * 2 - (n1 - 1) * 2;
 
@@ -268,7 +270,11 @@ int main()
 	double RelRes = 0;
 	double norm = 0;
 	double timer = 0;
-	int nthr = omp_get_max_threads();
+	int nthr = 1;
+
+#ifdef _OPENMP
+	nthr = omp_get_max_threads();
+#endif
 
 	printf("Run in parallel on %d threads\n", nthr);
 
@@ -279,15 +285,15 @@ int main()
 	GenMatrixandRHSandSolution(n1, n2, n3, D, ldd, B, x_orig, f);
 #else
 
-	// Generation of vector of solution (to compare with obtained), vector of RHS and block B
-	//GenRHSandSolution2D(x, y, B, x_orig, f);
-
 	// Generation of sparse coefficient matrix
 #ifndef ONLINE
 	GenSparseMatrix(x, y, z, B_mat, ldb, D, ldd, B_mat, ldb, Dcsr);
 #else
 	GenSparseMatrixOnline2D(x, y, B, B_mat, n, D, n, B_mat, n, Dcsr);
+
+	// Generation of vector of solution (to compare with obtained) and vector of RHS
 	GenRHSandSolution2D_Syntetic(x, y, Dcsr, x_orig, f);
+
 	free_arr(D);
 #endif
 	free_arr(B_mat);
@@ -334,12 +340,15 @@ int main()
 #ifdef STRUCT_CSR
 	//Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
 	//Test_DirSolveFactDiagStructConvergence(x, y, z, Gstr, thresh, smallsize);
-	//Test_DirSolveFactDiagStructBlockRanks(x, y, z, Gstr);
+	//Test_DirSolveFactDiagStructBlockRanks(x, y, Gstr);
+	//Test_NonZeroElementsInFactors(x, y, Gstr, B, thresh, smallsize);
 
 	for (int i = NB - 1; i >= 0; i--)
 		FreeNodes(n, Gstr[i], smallsize);
 
 	free(Gstr);
+
+	//system("pause");
 #endif
 
 	// Check Pardiso
@@ -347,18 +356,19 @@ int main()
 	int *iparm = alloc_arr<int>(64);
 	int *perm = alloc_arr<int>(size);
 	dtype *x_sol_prd = alloc_arr<dtype>(size);
-	int *pt = alloc_arr<int>(64);
+	size_t *pt = alloc_arr<size_t>(64);
 
 	int maxfct = 1;
 	int mnum = 1;
 	int phase = 0;
 	int rhs = 1;
-	int msglvl = 0;
+	int msglvl = 1;
 	int error = 0;
 
 	iparm[0] = 0;
 	pardisoinit(pt, &mtype, iparm);
-
+	iparm[26] = 1;
+	printf("Calling Pardiso...\n");
 #if 0
 	phase = 11;
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
@@ -374,8 +384,9 @@ int main()
 	timer = omp_get_wtime();
 	pardiso(pt, &maxfct, &mnum, &mtype, &phase, &size, Dcsr->values, Dcsr->ia, Dcsr->ja, perm, &rhs, iparm, &msglvl, f, x_sol_prd, &error);
 	timer = omp_get_wtime() - timer;
-	printf("Time PARDISO: %lf\n", timer);
 #endif
+	printf("Error Pardiso: %d\n", error); fflush(0);
+	printf("Time PARDISO: %lf\n", timer); fflush(0);
 
 	printf("Computing error ||x_{exact}-x_{PRD}||/||x_{exact}||\n");
 

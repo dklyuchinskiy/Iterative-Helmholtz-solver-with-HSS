@@ -74,7 +74,7 @@ struct MatrixCSR {
 typedef struct MatrixCSR dcsr;
 
 struct list {
-	mnode* node;
+	cmnode* node;
 	struct list* next;
 };
 
@@ -90,7 +90,7 @@ typedef struct list qlist;
 #define ONLINE
 #endif
 
-#define FULL_SVD
+//#define FULL_SVD
 
 //#define DIM_3D
 
@@ -103,15 +103,15 @@ typedef struct list qlist;
 
 // parameters of Helmholtz equation
 
-#if 1
+#if 0
 #define omega 4
 #define ky 1.78
-#define pml max(15, c0(1, 1) / omega)
+#define pml 0 //max(15, c0(1, 1) / omega)
 #define beta_eq 2.23
 #else
 #define omega 0
 #define ky 0
-#define pml 100
+#define pml 0
 #define beta_eq 1
 #endif
 
@@ -125,6 +125,14 @@ T* alloc_arr(int n)
 #pragma omp parallel for simd schedule(simd:static)
 	for (int i = 0; i < n; i++)
 		f[i] = 0.0;
+
+	return f;
+}
+
+template<typename T>
+T* alloc_arr2(int n)
+{
+	T *f = (T*)malloc(n * sizeof(T));
 
 	return f;
 }

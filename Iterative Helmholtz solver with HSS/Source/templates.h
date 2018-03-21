@@ -20,7 +20,7 @@ void Block3DSPDSolveFast(int n1, int n2, int n3, double *D, int ldd, double *B, 
 void DirFactFastDiag(int n1, int n2, int n3, double *D, int ldd, double *B, double *G, int ldg, double eps, int smallsize, char *bench);
 void DirSolveFastDiag(int n1, int n2, int n3, double *G, int ldg, double *B, double *f, double *x, double eps, int smallsize);
 void GenMatrixandRHSandSolution2(size_m x, size_m y, size_m z, double *D, int ldd, double *B, double *x1, double *f, double thresh);
-
+void Test_NonZeroElementsInFactors(size_m x, size_m y, cmnode **Gstr, dtype* B, double thresh, int smallsize);
 
 // Support
 
@@ -33,9 +33,10 @@ double rel_error(int n, int k, double *Hrec, double *Hinit, int ldh, double eps)
 double c0(double x, double y);
 dtype alph(size_m size, int xl, int xr, int i);
 void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, /* output */ dtype *u, dtype *f);
+void Clear(int m, int n, dtype* DD, int lddd);
 
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr);
-void Hilbert(int n, dtype *H, int ldh);
+void Hilbert(int m, int n, dtype *H, int ldh);
 void op_mat(int n1, int n, double *Y11, double *Y12, int ldy, char sign);
 void Add_dense(int m, int n, dtype alpha, dtype *A, int lda, dtype beta, dtype *B, int ldb, dtype *C, int ldc);
 void Resid(int n1, int n2, int n3, double *D, int ldd, double *B, double *x, double *f, double *g, double &RelRes);
@@ -46,7 +47,7 @@ void Add_dense_vect(int n, double alpha, double *a, double beta, double *b, doub
 void GenSolVector(int size, dtype *x1);
 void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f);
 void Mult_Au(int n1, int n2, int n3, double *D, int ldd, double *B, double *u, double *Au /*output*/);
-void print(int m, int n, double *u, int ldu, char *mess);
+void print(int m, int n, dtype *u, int ldu, char *mess);
 void print_vec_mat(int m, int n, double *u, int ldu, double *vec, char *mess);
 void print_vec(int size, double *vec1, double *vec2, char *name);
 void print_vec(int size, int *vec1, double *vec2, char *name);
@@ -62,14 +63,15 @@ map<vector<int>, double> concat_maps(const map<vector<int>, double>& map1, const
 
 // BinaryTrees.cpp
 
-int TreeSize(mnode* root);
-int MaxDepth(mnode* Node);
+int TreeSize(cmnode* root);
+int MaxDepth(cmnode* Node);
 void PrintRanks(mnode* root);
-void PrintRanksInWidth(mnode *root);
+void PrintRanksInWidth(cmnode *root);
 void CopyStruct(int n, cmnode* Gstr, cmnode* &TD1str, int smallsize);
 void FreeNodes(int n, cmnode* &Astr, int smallsize);
 void alloc_dense_node(int n, cmnode* &Cstr);
-void PrintStruct(int n, mnode *root);
+void PrintStruct(int n, cmnode *root);
+int CountElementsInMatrixTree(int n, cmnode* root);
 
 // BinaryTrees.cpp
 
@@ -117,10 +119,10 @@ void compare_vec(int size, dtype* v1, dtype* v2);
 // Queue
 void init(struct my_queue* &q);
 bool my_empty(struct my_queue* q);
-void push(struct my_queue* &q, mnode* node);
+void push(struct my_queue* &q, cmnode* node);
 void pop(struct my_queue* &q);
-mnode* front(struct my_queue* q);
-void PrintRanksInWidthList(mnode *root);
+cmnode* front(struct my_queue* q);
+void PrintRanksInWidthList(cmnode *root);
 void print_queue(struct my_queue* q);
 
 
