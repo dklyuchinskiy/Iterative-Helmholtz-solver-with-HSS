@@ -849,9 +849,9 @@ void DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** &Gstr, dtype *B,
 	}
 
 	cmnode *DCstr;
-	dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
-	dtype *alpX = alloc_arr<dtype>(n + 2);
-	dtype *alpY = alloc_arr<dtype>(n + 2);
+	dtype *DD = alloc_arr2<dtype>(n * n); int lddd = n;
+	dtype *alpX = alloc_arr2<dtype>(n + 2);
+	dtype *alpY = alloc_arr2<dtype>(n + 2);
 
 	SetPml(0, x, y, n, alpX, alpY);
 	Clear(n, n, DD, lddd);
@@ -936,8 +936,8 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	int n = n1;
 	int nbr = n2;
 	int size = n * nbr;
-	dtype *tb = alloc_arr<dtype>(size);
-	dtype *y = alloc_arr<dtype>(n);
+	dtype *tb = alloc_arr2<dtype>(size);
+	dtype *y = alloc_arr2<dtype>(n);
 
 #pragma omp parallel for simd schedule(runtime)
 	for (int i = 0; i < n; i++)
@@ -969,31 +969,6 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	free_arr(tb);
 	free_arr(y);
 }
-
-void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes)
-{
-	int n = n1;
-	int size = n * n2;
-	dtype *f1 = alloc_arr2<dtype>(size);
-	int ione = 1;
-
-	// Multiply matrix A in CSR format by vector x_sol to obtain f1
-	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, x_sol, f1);
-
-#pragma omp parallel for simd schedule(runtime)
-	for (int i = 0; i < size; i++)
-		g[i] = f[i] - f1[i];
-
-#ifdef DEBUG
-	print_vec(size, f, g, "f and g");
-#endif
-
-	RelRes = zlange("Frob", &size, &ione, g, &size, NULL);
-	RelRes = RelRes / zlange("Frob", &size, &ione, f, &size, NULL);
-
-	free_arr(f1);
-}
-
 
 void alloc_dense_node(int n, cmnode* &Cstr)
 {

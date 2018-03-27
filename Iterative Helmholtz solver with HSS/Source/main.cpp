@@ -194,19 +194,19 @@ int main()
 
 int main()
 {
-	//TestAll();
-	//system("pause");
+	TestAll();
+	system("pause");
 
 #if 1
-	int n1 = 800;		    // number of point across the directions
-	int n2 = 800;
+	int n1 = 400;		    // number of point across the directions
+	int n2 = 400;
 
 
 	int n = n1 + 2 * pml;				// size of blocks
 	int NB = n2 + 2 * pml;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
-	int smallsize = 800;
-	double thresh = 1e-4;	// stop level of algorithm by relative error
+	int smallsize = 400;
+	double thresh = 1e-6;	// stop level of algorithm by relative error
 
 	int ItRef = 200;		// Maximal number of iterations in refinement
 	char bench[255] = "ydisplay"; // parameter into solver to show internal results
@@ -262,7 +262,7 @@ int main()
 	Dcsr->values = alloc_arr<dtype>(non_zeros_in_block3diag);
 	Dcsr->ia = alloc_arr<int>(size + 1);
 	Dcsr->ja = alloc_arr<int>(non_zeros_in_block3diag);
-	Dcsr->ia[size] = non_zeros_in_block3diag + 1;
+	Dcsr->ia[size] = non_zeros_in_block3diag + 1;  // one based indexing
 #endif
 
 	int success = 0;
@@ -338,7 +338,7 @@ int main()
 
 
 #ifdef STRUCT_CSR
-	//Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
+	Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
 	//Test_DirSolveFactDiagStructConvergence(x, y, z, Gstr, thresh, smallsize);
 	//Test_DirSolveFactDiagStructBlockRanks(x, y, Gstr);
 	//Test_NonZeroElementsInFactors(x, y, Gstr, B, thresh, smallsize);
@@ -362,7 +362,7 @@ int main()
 	int mnum = 1;
 	int phase = 0;
 	int rhs = 1;
-	int msglvl = 1;
+	int msglvl = 0;
 	int error = 0;
 
 	iparm[0] = 0;

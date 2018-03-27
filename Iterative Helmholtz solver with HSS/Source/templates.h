@@ -40,7 +40,7 @@ void Hilbert(int m, int n, dtype *H, int ldh);
 void op_mat(int n1, int n, double *Y11, double *Y12, int ldy, char sign);
 void Add_dense(int m, int n, dtype alpha, dtype *A, int lda, dtype beta, dtype *B, int ldb, dtype *C, int ldc);
 void Resid(int n1, int n2, int n3, double *D, int ldd, double *B, double *x, double *f, double *g, double &RelRes);
-void print_map(const map<vector<int>, double>& SD);
+void print_map(const map <vector<int>, dtype>& SD);
 void Eye(int n, dtype *H, int ldh);
 void Diag(int n, dtype *H, int ldh, double value);
 void Add_dense_vect(int n, double alpha, double *a, double beta, double *b, double *c);

@@ -85,13 +85,17 @@ void Diag(int n, dtype *H, int ldh, double value)
 }
 
 void DiagVec(int n, dtype *H, int ldh, dtype *value)
-{
-#pragma omp parallel for schedule(runtime)
-	for (int j = 0; j < n; j++)
+{ 
+	int i = 0, j = 0;
+#pragma omp parallel private(i,j)
+	{
+#pragma omp for schedule(runtime)
+	for (j = 0; j < n; j++)
 #pragma omp simd
-		for (int i = 0; i < n; i++)
-			if (j == i) H[i + ldh * j] = value[j];
+		for (i = 0; i < n; i++)
+			if (i == j) H[i + ldh * j] = value[j];
 			else H[i + ldh * j] = 0.0;
+	}
 }
 
 
@@ -234,13 +238,13 @@ void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, i
 //	system("pause");
 
 	// diagonal blocks in dense format
-#pragma omp parallel for schedule(simd:static)
+#pragma omp parallel for schedule(runtime)
 	for (int i = 0; i < n; i++)
 	{
-		double freq = omega * omega / pow(c0(i * x.h, i * y.h), 2);
+		double k = omega * omega / pow(c0(i * x.h, i * y.h), 2);
 		DD[i + lddd * i] = -alpX[i + 1] * (alpX[i + 2] + 2.0 * alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h)
 						   -alpY[i + 1] * (alpY[i + 2] + 2.0 * alpY[i + 1] + alpY[i]) / (2.0 * y.h * y.h)
-			+ dtype{ freq , freq * beta_eq }
+			+ dtype{ k , k * beta_eq }
 			- dtype{ ky * ky, 0 };
 		if (i > 0) DD[i + lddd * (i - 1)] = alpX[i + 1] * (alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h); // forward
 		if (i < n - 1) DD[i + lddd * (i + 1)] = alpX[i + 1] * (alpX[i + 2] + alpX[i + 1]) / (2.0 * x.h * x.h); // backward
@@ -250,12 +254,12 @@ void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, i
 
 void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr)
 {
-	printf("GenSparseMatrixOnline...\n");
+	printf("GenSparseMatrixOnline...\n"); 	// NOTE: ONE BASED INDEXING!
 	int n = x.n;
 	int non_zeros_on_prev_level = 0;
 	map<vector<int>, dtype> CSR;
-	dtype *alpX = alloc_arr<dtype>(n + 2);
-	dtype *alpY = alloc_arr<dtype>(n + 2);
+	dtype *alpX = alloc_arr2<dtype>(n + 2);
+	dtype *alpY = alloc_arr2<dtype>(n + 2);
 
 	for (int blk = 0; blk < y.n; blk++) // y,n = pml + Ny + pml
 	{
@@ -278,6 +282,8 @@ void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, 
 		GenerateDiagonal1DBlock(blk, x, y, A, lda, alpX, alpY);
 		CSR = Block1DRowMat_to_CSR(blk, x.n, y.n, BL, ldbl, A, lda, BR, ldbr, Acsr, non_zeros_on_prev_level);
 	}
+	//print_map(CSR);
+	printf("Non_zeros inside generating function: %d\n", non_zeros_on_prev_level);
 	free_arr(alpX);
 	free_arr(alpY);
 }
@@ -336,6 +342,7 @@ void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, dtype *u, dtyp
 	// approximation of inner points values
 	GenSolVector(size, u);
 
+	printf("Multiply f := Acsr * u\n");
 	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, u, f);
 
 	printf("RHS and solution are constructed\n");
@@ -449,7 +456,7 @@ map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL,
 	}
 
 	free_arr(Arow);
-	return CSR;
+	return CSR_A;
 }
 
 map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level)
@@ -607,6 +614,39 @@ void Clear(int m, int n, dtype* A, int lda)
 #pragma omp simd
 		for (int i = 0; i < m; i++)
 			A[i + lda * j] = 0.0;
+}
+
+void print_map(const map<vector<int>, dtype> & SD)
+{
+	cout << "SD size = " << SD.size() << endl;
+	for (const auto& item : SD)
+		cout << "m = " << item.first[0] << " n = " << item.first[1] << " value = " <<
+						item.second.real() << " "<< item.second.imag() << endl;
+
+}
+
+void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes)
+{
+	int n = n1;
+	int size = n * n2;
+	dtype *f1 = alloc_arr2<dtype>(size);
+	int ione = 1;
+
+	// Multiply matrix A in CSR format by vector x_sol to obtain f1
+	mkl_zcsrgemv("No", &size, Dcsr->values, Dcsr->ia, Dcsr->ja, x_sol, f1);
+
+#pragma omp parallel for simd schedule(runtime)
+	for (int i = 0; i < size; i++)
+		g[i] = f[i] - f1[i];
+
+#ifdef DEBUG
+	print_vec(size, f, g, "f and g");
+#endif
+
+	RelRes = zlange("Frob", &size, &ione, g, &size, NULL);
+	RelRes = RelRes / zlange("Frob", &size, &ione, f, &size, NULL);
+
+	free_arr(f1);
 }
 
 
@@ -1409,14 +1449,6 @@ map<vector<int>, double> block3diag_to_CSR(int n1, int n2, int blocks, double *B
 
 	free(AR);
 	return CSR;
-}
-
-void print_map(const map<vector<int>, double>& SD)
-{
-	cout << "SD size = " << SD.size() << endl;
-	for (const auto& item : SD)
-		cout << "m = " << item.first[0] << " n = " << item.first[1] << " value = " << item.second << endl;
-
 }
 
 void print_vec(int size, double *vec1, double *vec2, char *name)

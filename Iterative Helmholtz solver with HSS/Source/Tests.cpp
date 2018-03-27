@@ -695,11 +695,9 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 	SymCompRecInvStruct(n, Gstr[0], DCstr, smallsize, eps, "SVD");
 	SymResRestoreStruct(n, DCstr, DR, lddr, smallsize);
 
-	printf("Block %d. ", 0);
 	norm = rel_error_complex(n, n, DR, DD, lddd, eps);
 
-	if (norm < eps) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, eps);
-	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, eps);
+	if (norm > eps) printf("Block %d. Norm %12.10lf > eps %12.10lf : FAILED\n", 0, norm, eps);
 
 	free_arr(DR);
 	free_arr(DD);
@@ -711,8 +709,6 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 		dtype *HR = alloc_arr<dtype>(n * n); int ldhr = n;
 		dtype *DD = alloc_arr<dtype>(n * n); int lddd = n;
 		cmnode *DCstr, *Hstr;
-
-		printf("Block %d. ", k);
 
 		SymCompRecInvStruct(n, Gstr[k], DCstr, smallsize, eps, "SVD");
 		SymResRestoreStruct(n, DCstr, DR, lddr, smallsize);
@@ -733,8 +729,7 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 
 		norm = rel_error_complex(n, n, HR, DD, lddd, eps);
 
-		if (norm < eps) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, eps);
-		else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, eps);
+		if (norm > eps) printf("Block %d. Norm %12.10lf > eps %12.10lf : FAILED\n", k, norm, eps);
 
 		FreeNodes(n, DCstr, smallsize);
 		FreeNodes(n, Hstr, smallsize);
