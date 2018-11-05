@@ -36,7 +36,7 @@ void print(int m, int n, dtype *u, int ldu, char *mess)
 		printf("%d ", i);
 		for (int j = 0; j < n; j++)
 		{
-			printf("%5.3lf ", u[i + ldu*j].real());
+			printf("%6.3lf ", u[i + ldu*j].real());
 		}
 		printf("\n");
 	}
@@ -67,18 +67,15 @@ double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, doubl
 void Eye(int n, dtype *H, int ldh)
 {
 	Clear(n, n, H, ldh);
-#pragma omp parallel for schedule(runtime)
+
 	for (int j = 0; j < n; j++)
-#pragma omp simd
 		for (int i = 0; i < n; i++)
 			H[i + ldh * i] = 1.0;
 }
 
 void Diag(int n, dtype *H, int ldh, double value)
 {
-#pragma omp parallel for schedule(runtime)
 	for (int j = 0; j < n; j++)
-#pragma omp simd
 		for (int i = 0; i < n; i++)
 			if (j == i) H[i + ldh * j] = value;
 			else H[i + ldh * j] = 0.0;
@@ -93,8 +90,10 @@ void DiagVec(int n, dtype *H, int ldh, dtype *value)
 	for (j = 0; j < n; j++)
 #pragma omp simd
 		for (i = 0; i < n; i++)
+		{
 			if (i == j) H[i + ldh * j] = value[j];
 			else H[i + ldh * j] = 0.0;
+		}
 	}
 }
 
@@ -102,13 +101,13 @@ void DiagVec(int n, dtype *H, int ldh, dtype *value)
 void Hilbert(int m, int n, dtype *H, int ldh)
 {
 	Clear(m, n, H, ldh);
-#pragma omp parallel for schedule(runtime)
+
 	for (int j = 0; j < n; j++)
-#pragma omp simd
 		for (int i = 0; i < m; i++)
 			H[i + ldh * j] = 1.0 / (i + j + 1);
 }
 
+/* (m x n) matrix -> to (n x m) matrix */
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr)
 {
 #pragma omp parallel for schedule(runtime)
@@ -241,11 +240,11 @@ void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, i
 #pragma omp parallel for schedule(runtime)
 	for (int i = 0; i < n; i++)
 	{
-		double k = omega * omega / pow(c0(i * x.h, i * y.h), 2);
+	//	double k = omega * omega / pow(c0(i * x.h, i * y.h), 2);
 		DD[i + lddd * i] = -alpX[i + 1] * (alpX[i + 2] + 2.0 * alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h)
-						   -alpY[i + 1] * (alpY[i + 2] + 2.0 * alpY[i + 1] + alpY[i]) / (2.0 * y.h * y.h)
-			+ dtype{ k , k * beta_eq }
-			- dtype{ ky * ky, 0 };
+			- alpY[i + 1] * (alpY[i + 2] + 2.0 * alpY[i + 1] + alpY[i]) / (2.0 * y.h * y.h);
+	//		+ dtype{ k , k * beta_eq }
+	//		- dtype{ ky * ky, 0 };
 		if (i > 0) DD[i + lddd * (i - 1)] = alpX[i + 1] * (alpX[i + 1] + alpX[i]) / (2.0 * x.h * x.h); // forward
 		if (i < n - 1) DD[i + lddd * (i + 1)] = alpX[i + 1] * (alpX[i + 2] + alpX[i + 1]) / (2.0 * x.h * x.h); // backward
 	}
@@ -273,39 +272,36 @@ void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, 
 			for (int i = 0; i < n; i++)
 			{
 				B[ind(blk, n) + i] = alpY[i + 1] * (alpY[i + 2] + alpY[i + 1]) / (2.0 * y.h * y.h);
-				//	printf("%d %lf\n", i + blk * n, B[ind(blk, n) + i].real());
+			//	printf("%d %lf\n", i + blk * n, B[ind(blk, n) + i].real());
 			}
 		}
 		DiagVec(n, BL, ldbl, B); // B тоже должен меняться в зависимости от уровня blk
 		DiagVec(n, BR, ldbr, B);
 
+		//print(x.n, x.n, BL, lda, "BL");
+
 		GenerateDiagonal1DBlock(blk, x, y, A, lda, alpX, alpY);
+	//	print(x.n, x.n, A, lda, "A");
+	//	system("pause");
 		CSR = Block1DRowMat_to_CSR(blk, x.n, y.n, BL, ldbl, A, lda, BR, ldbr, Acsr, non_zeros_on_prev_level);
 	}
-	//print_map(CSR);
+//	print_map(CSR);
 	printf("Non_zeros inside generating function: %d\n", non_zeros_on_prev_level);
 	free_arr(alpX);
 	free_arr(alpY);
 }
 
 
-void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f)
+void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype *u, dtype *f)
 {
 	int n = x.n;
-
-	// Set vector B
-#pragma omp parallel for schedule(runtime)
-	for (int j = 0; j < y.n - 1; j++)
-#pragma omp simd
-		for (int i = 0; i < n; i++)
-			B[ind(j, n) + i] = 1.0 / (y.h * y.h);
 
 	// approximation of exact right hand side (inner grid points)
 #pragma omp parallel for schedule(runtime)
 		for (int j = 0; j < y.n; j++)
 #pragma omp simd
 			for (int i = 0; i < x.n; i++)
-				f[j * x.n + i] = F_ex_2D((i + 1) * x.h, (j + 1) * y.h);
+				f[j * x.n + i] = F_ex_2D(x, y, (i + 1) * x.h, (j + 1) * y.h);
 
 
 	// for each boundary 0 <= y <= Ly
@@ -313,14 +309,14 @@ void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dt
 #pragma omp parallel for simd schedule(runtime)
 		for (int i = 0; i < x.n; i++)
 		{
-			f[0 * x.n + i] -=	      u_ex_2D((i + 1) * x.h, 0)   / (y.h * y.h); // u|y = 0
-			f[(y.n - 1) * x.n + i] -= u_ex_2D((i + 1) * x.h, y.l) / (y.h * y.h); // u|y = h
+			f[0 * x.n + i] -=	      u_ex_2D(x, y, (i + 1) * x.h, 0)   / (y.h * y.h); // u|y = 0
+			f[(y.n - 1) * x.n + i] -= u_ex_2D(x, y, (i + 1) * x.h, y.l) / (y.h * y.h); // u|y = h
 		}
 #pragma omp parallel for schedule(runtime)
 		for (int j = 0; j < y.n; j++)
 		{
-			f[j * x.n + 0] -=		u_ex_2D(0,   (j + 1) * y.h) / (x.h * x.h); // u|x = 0
-			f[j * x.n + x.n - 1] -= u_ex_2D(x.l, (j + 1) * y.h) / (x.h * x.h); // u|x = h
+			f[j * x.n + 0] -=		u_ex_2D(x, y, 0,   (j + 1) * y.h) / (x.h * x.h); // u|x = 0
+			f[j * x.n + x.n - 1] -= u_ex_2D(x, y, x.l, (j + 1) * y.h) / (x.h * x.h); // u|x = h
 		}
 
 	// approximation of inner points values
@@ -328,7 +324,7 @@ void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dt
 		for (int j = 0; j < y.n; j++)
 #pragma omp simd
 			for (int i = 0; i < x.n; i++)
-				u[ind(j, x.n) + i] = u_ex_2D((i + 1) * x.h, (j + 1) * y.h);
+				u[ind(j, x.n) + i] = u_ex_2D(x, y, (i + 1) * x.h, (j + 1) * y.h);
 
 	printf("RHS and solution are constructed\n");
 }
@@ -348,7 +344,7 @@ void GenRHSandSolution2D_Syntetic(size_m x, size_m y, dcsr *Dcsr, dtype *u, dtyp
 	printf("RHS and solution are constructed\n");
 }
 
-void GenRHSandSolution(size_m x, size_m y, size_m z, /* output */ dtype* B, dtype *u, dtype *f)
+void GenRHSandSolution3D(size_m x, size_m y, size_m z, /* output */ dtype* B, dtype *u, dtype *f)
 {
 	int n = x.n * y.n;
 
@@ -568,16 +564,18 @@ void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
 		f[i] = diag[i] * v[i];
 }
 
-double F_ex_2D(double x, double y)
+double F_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-	//	return -12.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
-	return 0;
+//	return -8.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y);
+//	return 0;
+	return 2.0 *  (x * (x - xx.l) + y * (y - yy.l));
 }
 
-double u_ex_2D(double x, double y)
+double u_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-	//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y) * sin(2 * PI * z);
-	return x * x - y * y;
+//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y);
+//	return x * x - y * y;
+	return x * y * (x - xx.l) * (y - yy.l);
 }
 
 double F_ex(double x, double y, double z)
@@ -609,9 +607,7 @@ double random(double min, double max)
 
 void Clear(int m, int n, dtype* A, int lda)
 {
-#pragma omp parallel for schedule(runtime)
 	for (int j = 0; j < n; j++)
-#pragma omp simd
 		for (int i = 0; i < m; i++)
 			A[i + lda * j] = 0.0;
 }

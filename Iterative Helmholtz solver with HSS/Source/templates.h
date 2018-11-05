@@ -27,8 +27,8 @@ void Test_NonZeroElementsInFactors(size_m x, size_m y, cmnode **Gstr, dtype* B, 
 double random(double min, double max);
 double F_ex(double x, double y, double z);
 double u_ex(double x, double y, double z);
-double F_ex_2D(double x, double y);
-double u_ex_2D(double x, double y);
+double F_ex_2D(size_m xx, size_m yy, double x, double y);
+double u_ex_2D(size_m xx, size_m yy, double x, double y);
 double rel_error(int n, int k, double *Hrec, double *Hinit, int ldh, double eps);
 double c0(double x, double y);
 dtype alph(size_m size, int xl, int xr, int i);
@@ -87,6 +87,23 @@ void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, doub
 void SymResRestoreStruct(int n, cmnode* H1str, dtype *H2, int ldh, int smallsize);
 double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, double eps);
 
+// Unsymm
+void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize);
+void UnsymmRecMultLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void UnsymmRecMultRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void UnsymmUpdate2Subroutine(int n2, int n1, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cmnode* &Bstr, int smallsize, double eps, char* method);
+void UnsymmCompUpdate2Struct(int n, int k, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cumnode* &Bstr, int smallsize, double eps, char* method);
+void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize, double eps, char *method);
+void alloc_dense_unsymm_node(int n, cumnode* &Cstr);
+void CopyUnsymmStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize);
+void UnsymmRecCompressStruct(int n, dtype *A, const int lda, cumnode* &ACstr, const int small_size, double eps, char *method);
+void UnsymmResRestoreStruct(int n, cumnode* H1str, dtype *H2, int ldh, int smallsize);
+void UnsymmAddStruct(int n, dtype alpha, cumnode* Astr, dtype beta, cumnode* Bstr, cumnode* &Cstr, int smallsize, double eps, char *method);
+void UnsymmAddSubroutine(int n2, int n1, dtype alpha, cmnode* Astr, dtype beta, cmnode* Bstr, cmnode* &Cstr, int smallsize, double eps, char *method);
+void FreeUnsymmNodes(int n, cumnode* &Astr, int smallsize);
+void UnsymmUpdate3Subroutine(int n2, int n1, int k1, int k2, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype* V2, int ldv2, cmnode* &Bstr, int smallsize, double eps, char* method);
+void UnsymmCompUpdate3Struct(int n, int k1, int k2, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cumnode* &Bstr, int smallsize, double eps, char* method);
+
 // Solver
 void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, dtype *f, dcsr* Dcsr, double thresh, int smallsize, int ItRef, char *bench,
 	cmnode** &Gstr, dtype *x_sol, int &success, double &RelRes, int &itcount);
@@ -102,8 +119,8 @@ void DiagVec(int n, dtype *H, int ldh, dtype *value);
 void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, double &RelRes);
 void GenSparseMatrix(size_m x, size_m y, size_m z, double *BL, int ldbl, double *A, int lda, double *BR, int ldbr, dcsr* Acsr);
 void GenerateDiagonal1DBlock(int part_of_field, size_m x, size_m y, dtype *DD, int lddd, dtype *alpX, dtype* alpY);
-void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype* B, dtype *u, dtype *f);
-void GenRHSandSolution(size_m x, size_m y, size_m z, dtype* B, dtype *u, dtype *f);
+void GenRHSandSolution2D(size_m x, size_m y, /* output */ dtype *u, dtype *f);
+void GenRHSandSolution3D(size_m x, size_m y, size_m z, dtype* B, dtype *u, dtype *f);
 void GenSparseMatrixOnline(size_m x, size_m y, size_m z, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
 void GenSparseMatrixOnline2D(size_m x, size_m y, dtype *B, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr);
 map<vector<int>, dtype> Block1DRowMat_to_CSR(int blk, int n1, int n2, dtype *BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dcsr* Acsr, int& non_zeros_on_prev_level);

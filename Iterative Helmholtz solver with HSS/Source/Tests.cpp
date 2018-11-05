@@ -21,12 +21,20 @@ void TestAll()
 	printf("****Complex precision****\n");
 	runner.RunTest(Shell_LowRankApprox, Test_LowRankApproxStruct, "Test_LowRankApprox");
 	runner.RunTest(Shell_SymRecCompress, Test_SymRecCompressStruct, "Test_SymRecCompress");
+	runner.RunTest(Shell_SymRecCompress, Test_UnsymmRecCompressStruct, "Test_UnsymmRecCompress");
 	runner.RunTest(Shell_DiagMult, Test_DiagMultStruct, "Test_DiagMult");
 	runner.RunTest(Shell_RecMultL, Test_RecMultLStruct, "Test_RecMultL");
+	runner.RunTest(Shell_RecMultL, Test_UnsymmRecMultLStruct, "Test_UnsymmRecMultL");
+	runner.RunTest(Shell_RecMultL, Test_UnsymmRecMultRStruct, "Test_UnsymmRecMultR");
 	runner.RunTest(Shell_Add, Test_AddStruct, "Test_Add");
+	runner.RunTest(Shell_Add, Test_UnsymmAddStruct, "Test_UnsymmAdd");
 	runner.RunTest(Shell_SymCompUpdate2, Test_SymCompUpdate2Struct, "Test_SymCompUpdate2");
+	runner.RunTest(Shell_SymCompUpdate2, Test_UnsymmCompUpdate2Struct, "Test_UnsymmCompUpdate2");
+	runner.RunTest(Shell_UnsymmCompUpdate3, Test_UnsymmCompUpdate3Struct, "Test_UnsymmCompUpdate3");
 	runner.RunTest(Shell_SymCompRecInv, Test_SymCompRecInvStruct, "Test_SymCompRecInv");
+	runner.RunTest(Shell_SymCompRecInv, Test_UnsymmCompRecInvStruct, "Test_UnsymmCompRecInv");
 	runner.RunTest(Shell_CopyStruct, Test_CopyStruct,  "Test_CopyStruct");
+	runner.RunTest(Shell_CopyStruct, Test_CopyUnsymmStruct, "Test_CopyUnsymmStruct");
 
 
 	printf("********************\n");
@@ -182,7 +190,35 @@ void Shell_SymCompUpdate2(ptr_test_update func, const string& test_name, int &nu
 					try
 					{
 						numb++;
-						func(n, k, alpha, eps, method, smallsize);
+						func(n, k, { alpha, 0 }, eps, method, smallsize);
+					}
+					catch (runtime_error& e)
+					{
+						++fail_count;
+						cerr << test_name << " fail: " << e.what() << endl;
+					}
+					catch (...) {
+						++fail_count;
+						cerr << "Unknown exception caught" << endl;
+					}
+				}
+}
+
+void Shell_UnsymmCompUpdate3(ptr_test_update2 func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+	int smallsize = 3;
+
+	for (double eps = 1e-3; eps > 1e-9; eps /= 10)
+		for (double alpha = -10; alpha < 10; alpha += 2)
+			for (int n = 3; n <= 10; n++)
+				for (int k1 = 1; k1 <= 10; k1 += 2)
+					for (int k2 = 1; k2 <= 10; k2 += 2)
+				{
+					try
+					{
+						numb++;
+						func(n, k1, k2, { alpha, 0 }, eps, method, smallsize);
 					}
 					catch (runtime_error& e)
 					{
@@ -203,7 +239,7 @@ void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name
 	int smallsize = 3;
 
 	for (double eps = 1e-2; eps > 1e-8; eps /= 10)
-		for (int n = 3; n <= 10; n++)
+		for (int n = 3; n <= 20; n += 2)
 		{
 			try
 			{
@@ -247,7 +283,6 @@ void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, i
 			}
 		}
 }
-
 
 void Test_LowRankApproxStruct(int m, int n, double eps, char *method)
 {
@@ -336,6 +371,52 @@ void Test_SymRecCompressStruct(int n, double eps, char *method, int smallsize)
 	AssertLess(norm, eps, str);
 
 	FreeNodes(n, H1str, smallsize);
+	free_arr(H);
+	free_arr(H2);
+	free_arr(H1);
+}
+
+void Test_UnsymmRecCompressStruct(int n, double eps, char *method, int smallsize)
+{
+	//printf("*****Test for SymRecCompressStruct  n = %d eps = %e ******* ", n, eps);
+	char frob = 'F';
+	double norm = 0;
+
+	dtype *H = alloc_arr2<dtype>(n * n); // init
+	dtype *H1 = alloc_arr2<dtype>(n * n); // compressed
+	dtype *H2 = alloc_arr<dtype>(n * n); // recovered init
+
+	int ldh = n;
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
+
+#ifdef DEBUG
+	print(n, n, H1, ldh, "H1");
+#endif
+
+	cumnode *H1str; // pointer to the tree head
+	UnsymmRecCompressStruct(n, H1, ldh, H1str, smallsize, eps, "SVD"); // recursive function means recursive allocation of memory for structure fields
+	UnsymmResRestoreStruct(n, H1str, H2, ldh, smallsize);
+
+#ifdef DEBUG
+	//print(n, n, H1, ldh, "H1 compressed");
+	print(n, n, H2, ldh, "H recovered");
+#endif
+
+	// Norm of residual || A - L * U ||
+	norm = rel_error_complex(n, n, H2, H, ldh, eps);
+
+#ifdef DEBUG
+	print(n, n, H, ldh, "H init");
+	print(n, n, H2, ldh, "diff");
+#endif
+
+	char str[255];
+	sprintf(str, "Struct: n = %d ", n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, H1str, smallsize);
 	free_arr(H);
 	free_arr(H2);
 	free_arr(H1);
@@ -452,6 +533,112 @@ void Test_RecMultLStruct(int n, int k, double eps, char *method, int smallsize)
 	free_arr(Y1);
 }
 
+void Test_UnsymmRecMultLStruct(int n, int k, double eps, char *method, int smallsize)
+{
+	//printf("*****Test for RecMultLStruct  n = %d k = %d ******* ", n, k);
+	dtype *H = alloc_arr2<dtype>(n * n); // init and compressed
+	dtype *X = alloc_arr2<dtype>(n * k);
+	dtype *Y = alloc_arr2<dtype>(n * k); // init Y
+	dtype *Y1 = alloc_arr2<dtype>(n * k); // after multiplication woth compressed
+	char str[255];
+
+	double norm = 0;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	int ldh = n;
+	int ldy = n;
+	int ldx = n;
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, k, X, ldx);
+
+	zgemm("No", "No", &n, &k, &n, &alpha, H, &ldh, X, &ldx, &beta, Y, &ldy);
+
+#ifdef DEBUG
+	print(n, n, H, ldy, "H init");
+	print(n, k, X, ldy, "X init");
+	print(n, k, Y, ldy, "Y init");
+#endif
+
+	cumnode *Hstr;
+	// Compress H
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+
+	// RecMult Y1 = comp(H) * X
+	UnsymmRecMultLStruct(n, k, Hstr, X, ldx, Y1, ldy, smallsize);
+
+	norm = rel_error_complex(n, k, Y1, Y, ldy, eps);
+	sprintf(str, "Struct: n = %d k = %d ", n, k);
+	AssertLess(norm, eps, str);
+
+#ifdef DEBUG
+	print(n, n, H, ldy, "H comp");
+	print(n, k, Y1, ldy, "Y1 rec");
+#endif
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	free_arr(H);
+	free_arr(X);
+	free_arr(Y);
+	free_arr(Y1);
+}
+
+/*Тест на сравнение результатов умножения Y = X * H сжимаемой матрицы H на произвольную X.
+Сравниваются результаты со сжатием и без
+(k x n) * (n x n) */
+void Test_UnsymmRecMultRStruct(int n, int k, double eps, char *method, int smallsize)
+{
+	//printf("*****Test for RecMultLStruct  n = %d k = %d ******* ", n, k);
+	dtype *H = alloc_arr2<dtype>(n * n); // init and compressed
+	dtype *X = alloc_arr2<dtype>(k * n);
+	dtype *Y = alloc_arr2<dtype>(k * n); // init Y
+	dtype *Y1 = alloc_arr2<dtype>(k * n); // after multiplication woth compressed
+	char str[255];
+
+	double norm = 0;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	int ldh = n;
+	int ldy = k;
+	int ldx = k;
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(k, n, X, ldx);
+
+	zgemm("No", "No", &k, &n, &n, &alpha, X, &ldx, H, &ldh, &beta, Y, &ldy);
+
+#ifdef DEBUG
+	print(n, n, H, ldy, "H init");
+	print(n, k, X, ldy, "X init");
+	print(n, k, Y, ldy, "Y init");
+#endif
+
+	cumnode *Hstr;
+	// Compress H
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+
+	// RecMult Y1 = X * comp(H)
+	UnsymmRecMultRStruct(n, k, Hstr, X, ldx, Y1, ldy, smallsize);
+
+	norm = rel_error_complex(k, n, Y1, Y, ldy, eps);
+	sprintf(str, "Struct: n = %d k = %d ", n, k);
+	AssertLess(norm, eps, str);
+
+#ifdef DEBUG
+	print(n, n, H, ldy, "H comp");
+	print(n, k, Y1, ldy, "Y1 rec");
+#endif
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	free_arr(H);
+	free_arr(X);
+	free_arr(Y);
+	free_arr(Y1);
+}
+
+
 void Test_AddStruct(int n, dtype alpha, dtype beta, double eps, char *method, int smallsize)
 {
 	//printf("*****Test for Add n = %d ******* ", n);
@@ -508,12 +695,82 @@ void Test_AddStruct(int n, dtype alpha, dtype beta, double eps, char *method, in
 #endif
 	// |GcR - G| / |G|
 	norm = rel_error_complex(n, n, GcR, G, ldg, eps);
-	sprintf(str, "Struct: n = %d n = %d alpha = %lf", n, n, alpha, beta);
+	sprintf(str, "Struct: n = %d n = %d alpha = %lf", n, n, alpha.real(), beta.real());
 	AssertLess(norm, eps, str);
 
 	FreeNodes(n, H1str, smallsize);
 	FreeNodes(n, H2str, smallsize);
 	FreeNodes(n, Gstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(G);
+	free_arr(H1c);
+	free_arr(H2c);
+	free_arr(GcR);
+}
+
+void Test_UnsymmAddStruct(int n, dtype alpha, dtype beta, double eps, char *method, int smallsize)
+{
+	//printf("*****Test for Add n = %d ******* ", n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	dtype *G = alloc_arr2<dtype>(n * n);
+	dtype *H1c = alloc_arr2<dtype>(n * n);
+	dtype *H2c = alloc_arr2<dtype>(n * n);
+	dtype *GcR = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	int ldh = n;
+	int ldg = n;
+	double norm = 0;
+
+	Hilbert(n, n, H1, ldh);
+	Hilbert(n, n, H1c, ldh);
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < n; i++)
+		{
+			H2[i + ldh * j] = 1.0 / (i*i + j * j + 1);
+			H2c[i + ldh * j] = 1.0 / (i*i + j * j + 1);
+		}
+
+#ifdef DEBUG
+	print(n, n, H1, ldh, "H1");
+	print(n, n, H2, ldh, "H2");
+#endif
+
+	cumnode *H1str, *H2str;
+	UnsymmRecCompressStruct(n, H1c, ldh, H1str, smallsize, eps, method);
+	UnsymmRecCompressStruct(n, H2c, ldh, H2str, smallsize, eps, method);
+
+#ifdef DEBUG
+	print(n, n, H1c, ldh, "H1c");
+	print(n, n, H2c, ldh, "H2c");
+#endif
+
+	cumnode *Gstr;
+	Add_dense(n, n, alpha, H1, ldh, beta, H2, ldh, G, ldg);
+	UnsymmAddStruct(n, alpha, H1str, beta, H2str, Gstr, smallsize, eps, method);
+
+#ifdef DEBUG
+	print(n, n, G, ldg, "res_dense");
+	print(n, n, Gc, ldg, "res_comp");
+#endif
+
+	UnsymmResRestoreStruct(n, Gstr, GcR, ldg, smallsize);
+
+#ifdef DEBUG
+	print(n, n, GcR, ldg, "res_comp_restore");
+#endif
+	// |GcR - G| / |G|
+	norm = rel_error_complex(n, n, GcR, G, ldg, eps);
+	sprintf(str, "Struct: n = %d n = %d alpha = %lf beta = %lf", n, n, alpha.real(), beta.real());
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, H1str, smallsize);
+	FreeUnsymmNodes(n, H2str, smallsize);
+	FreeUnsymmNodes(n, Gstr, smallsize);
 	free_arr(H1);
 	free_arr(H2);
 	free_arr(G);
@@ -576,7 +833,7 @@ void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* meth
 
 	// || B_rec - H || / || H ||
 	norm = rel_error_complex(n, n, B_rec, H, ldh, eps);
-	sprintf(str, "Struct: n = %d k = %d alpha = %lf", n, k, alpha);
+	sprintf(str, "Struct: n = %d k = %d alpha = %lf", n, k, alpha.real());
 	AssertLess(norm, eps, str);
 
 	FreeNodes(n, Bstr, smallsize);
@@ -587,6 +844,151 @@ void Test_SymCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* meth
 	free_arr(Y);
 	free_arr(C);
 	free_arr(V);
+}
+
+void Test_UnsymmCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* method, int smallsize)
+{
+	//printf("*****Test for SymCompUpdate2Struct  n = %d k = %d ***** ", n, k);
+	dtype *B_rec = alloc_arr<dtype>(n * n);
+	dtype *Y = alloc_arr2<dtype>(k * k); int ldy = k;
+	dtype *V = alloc_arr2<dtype>(n * k); int ldv = n; int ldvtr = k;
+	dtype *HC = alloc_arr2<dtype>(n * n); int ldh = n;
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *C = alloc_arr2<dtype>(n * k); int ldc = n;
+	char str[255];
+
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	double norm = 0;
+
+
+	Hilbert(n, n, HC, ldh);
+	Hilbert(n, n, H, ldh);
+
+	Clear(k, k, Y, ldy);
+	Clear(n, k, V, ldv);
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int i = 0; i < k; i++)
+		Y[i + ldy * i] = i + 1;
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int j = 0; j < k; j++)
+		for (int i = 0; i < n; i++)
+			V[i + ldv * j] = (i + j + 1);
+
+	// C = V * Y
+	zgemm("No", "No", &n, &k, &k, &alpha_one, V, &ldv, Y, &ldy, &beta_zero, C, &ldc);
+
+	// H = H + alpha * C * VT
+	zgemm("No", "Trans", &n, &n, &k, &alpha, C, &ldc, V, &ldv, &beta_one, H, &ldh);
+
+	cumnode *HCstr;
+	// Compressed update
+	UnsymmRecCompressStruct(n, HC, ldh, HCstr, smallsize, eps, method);
+
+	cumnode *Bstr;
+	UnsymmCompUpdate2Struct(n, k, HCstr, alpha, Y, ldy, V, ldv, Bstr, smallsize, eps, method);
+	UnsymmResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
+
+#ifdef DEBUG
+	print(n, n, B_rec, ldb, "B_rec");
+	print(n, n, H, ldh, "H");
+#endif
+
+	// || B_rec - H || / || H ||
+	norm = rel_error_complex(n, n, B_rec, H, ldh, eps);
+	sprintf(str, "Struct: n = %d k = %d alpha = %lf", n, k, alpha.real());
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Bstr, smallsize);
+	FreeUnsymmNodes(n, HCstr, smallsize);
+	free_arr(B_rec);
+	free_arr(H);
+	free_arr(HC);
+	free_arr(Y);
+	free_arr(C);
+	free_arr(V);
+}
+
+/* (n x k) * (k x k) * (k x n) 
+k << n */
+
+void Test_UnsymmCompUpdate3Struct(int n, int k1, int k2, dtype alpha, double eps, char* method, int smallsize)
+{
+	//printf("*****Test for SymCompUpdate2Struct  n = %d k = %d ***** ", n, k);
+	dtype *B_rec = alloc_arr<dtype>(n * n);
+	dtype *Y = alloc_arr2<dtype>(k1 * k2); int ldy = k1;
+	dtype *V1 = alloc_arr2<dtype>(n * k1); int ldv1 = n;
+	dtype *V2 = alloc_arr2<dtype>(k2 * n); int ldv2 = k2;
+	dtype *HC = alloc_arr2<dtype>(n * n); int ldh = n;
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *C = alloc_arr2<dtype>(n * k2); int ldc = n;
+	char str[255];
+
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	double norm = 0;
+
+
+	Hilbert(n, n, HC, ldh);
+	Hilbert(n, n, H, ldh);
+
+	Clear(k1, k2, Y, ldy);
+	Clear(n, k1, V1, ldv1);
+	Clear(k2, n, V2, ldv2);
+
+	int kmin = min(k1, k2);
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int i = 0; i < kmin; i++)
+		Y[i + ldy * i] = i + 1;
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int j = 0; j < k1; j++)
+		for (int i = 0; i < n; i++)
+			V1[i + ldv1 * j] = (i + j + 1);
+
+#pragma omp parallel for simd schedule(simd:static)
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < k2; i++)
+			V2[i + ldv2 * j] = (i + j + 2);
+
+	// C = V1 * Y
+	zgemm("No", "No", &n, &k2, &k1, &alpha_one, V1, &ldv1, Y, &ldy, &beta_zero, C, &ldc);
+
+	// H = H + alpha * C * V2
+	zgemm("No", "No", &n, &n, &k2, &alpha, C, &ldc, V2, &ldv2, &beta_one, H, &ldh);
+
+	cumnode *HCstr;
+	// Compressed update
+	UnsymmRecCompressStruct(n, HC, ldh, HCstr, smallsize, eps, method);
+
+	cumnode *Bstr;
+	UnsymmCompUpdate3Struct(n, k1, k2, HCstr, alpha, Y, ldy, V1, ldv1, V2, ldv2, Bstr, smallsize, eps, method);
+	UnsymmResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
+
+#ifdef DEBUG
+	print(n, n, B_rec, ldb, "B_rec");
+	print(n, n, H, ldh, "H");
+#endif
+
+	// || B_rec - H || / || H ||
+	norm = rel_error_complex(n, n, B_rec, H, ldh, eps);
+	sprintf(str, "Struct: n = %d k1 = %d k2 = %d  alpha = %lf", n, k1, k2, alpha.real());
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Bstr, smallsize);
+	FreeUnsymmNodes(n, HCstr, smallsize);
+	free_arr(B_rec);
+	free_arr(H);
+	free_arr(HC);
+	free_arr(Y);
+	free_arr(C);
+	free_arr(V1);
+	free_arr(V2);
 }
 
 void Test_SymCompRecInvStruct(int n, double eps, char *method, int smallsize)
@@ -672,6 +1074,89 @@ void Test_CopyStruct(int n, double eps, char *method, int smallsize)
 	free_arr(H);
 }
 
+void Test_UnsymmCompRecInvStruct(int n, double eps, char *method, int smallsize)
+{
+	//printf("***** Test_SymCompRecInvStruct n = %d eps = %lf ****", n, eps);
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *Hc = alloc_arr2<dtype>(n * n);
+	dtype *Brec = alloc_arr2<dtype>(n * n);
+	dtype *Y = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	int ldh = n;
+	int ldb = n;
+	int ldy = n;
+
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	double norm = 0;
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, Hc, ldh);
+
+	// for stability
+	for (int i = 0; i < n; i++)
+	{
+		H[i + ldh * i] += 1.0;
+		Hc[i + ldh * i] += 1.0;
+	}
+
+	cumnode *HCstr, *BCstr;
+	UnsymmRecCompressStruct(n, Hc, ldh, HCstr, smallsize, eps, method);
+	UnsymmCompRecInvStruct(n, HCstr, BCstr, smallsize, eps, method);
+	UnsymmResRestoreStruct(n, BCstr, Brec, ldb, smallsize);
+
+	Eye(n, Y, ldy);
+
+	// Y = Y - H * Brec
+	zgemm("No", "No", &n, &n, &n, &alpha_mone, H, &ldh, Brec, &ldb, &beta_one, Y, &ldy);
+
+	norm = zlange("Frob", &n, &n, Y, &ldy, NULL);
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+	//if (norm < eps) printf("Norm %10.8e < eps %10.8lf: PASSED\n", norm, eps);
+	//else printf("Norm %10.8lf > eps %10.8e : FAILED\n", norm, eps);
+
+	FreeUnsymmNodes(n, HCstr, smallsize);
+	FreeUnsymmNodes(n, BCstr, smallsize);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(Brec);
+	free_arr(Y);
+}
+
+void Test_CopyUnsymmStruct(int n, double eps, char *method, int smallsize)
+{
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+
+	//printf("***Test CopyStruct n = %d ", n);
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
+
+	cumnode* Hstr, *Hcopy_str;
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+	CopyUnsymmStruct(n, Hstr, Hcopy_str, smallsize);
+	UnsymmResRestoreStruct(n, Hcopy_str, H2, ldh, smallsize);
+
+	norm = rel_error_complex(n, n, H2, H1, ldh, eps);
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	FreeUnsymmNodes(n, Hcopy_str, smallsize);
+	free_arr(H2);
+	free_arr(H1);
+	free_arr(H);
+}
+
 void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double eps, int smallsize)
 {
 	printf("Testing factorization...\n");
@@ -695,9 +1180,24 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 	SymCompRecInvStruct(n, Gstr[0], DCstr, smallsize, eps, "SVD");
 	SymResRestoreStruct(n, DCstr, DR, lddr, smallsize);
 
-	norm = rel_error_complex(n, n, DR, DD, lddd, eps);
+//	print(n, n, DR, lddd, "DR");
+//	print(n, n, DD, lddd, "DD");
 
-	if (norm > eps) printf("Block %d. Norm %12.10lf > eps %12.10lf : FAILED\n", 0, norm, eps);
+	norm = rel_error_complex(n, n, DR, DD, lddd, eps);
+//	print(n, n, DR, lddd, "DR_DIFF");
+/*	for (int i = 0; i < n; i++)
+	{
+		printf("%d ", i);
+		for (int j = 0; j < n; j++)
+		{
+			printf("%14.12lf %14.12lf\n", DR[i + lddd*j].real(), DR[i + lddd*j].imag());
+		}
+		printf("\n");
+	}*/
+
+	//printf("%s\n", mess);
+
+	if (norm > eps) printf("Block %d. Norm %12.10e > eps %12.10lf : FAILED\n", 0, norm, eps);
 
 	free_arr(DR);
 	free_arr(DD);
@@ -717,7 +1217,6 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 		DiagMultStruct(n, Hstr, &B[ind(k - 1, n)], smallsize);
 		SymResRestoreStruct(n, Hstr, HR, ldhr, smallsize);
 
-		// Norm of residual
 #pragma omp parallel for schedule(static)
 		for (int j = 0; j < n; j++)
 #pragma omp simd
@@ -727,9 +1226,16 @@ void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *
 		SetPml(k, x, y, n, alpX, alpY);
 		GenerateDiagonal1DBlock(k, x, y, DD, lddd, alpX, alpY);
 
-		norm = rel_error_complex(n, n, HR, DD, lddd, eps);
 
-		if (norm > eps) printf("Block %d. Norm %12.10lf > eps %12.10lf : FAILED\n", k, norm, eps);
+	//	print(n, n, HR, lddd, "DR");
+	//	print(n, n, DD, lddd, "DD");
+
+		norm = rel_error_complex(n / 2, n / 2, &HR[n / 2 + ldhr * n / 2], &DD[n / 2 + lddd * n / 2], lddd, eps);
+
+		if (norm > eps) printf("Block %d. Norm %12.10e > eps %12.10lf : FAILED\n", k, norm, eps);
+		else printf("Block %d. Norm %12.10e > eps %12.10lf : PASSED\n", k, norm, eps);
+
+	//	system("pause");
 
 		FreeNodes(n, DCstr, smallsize);
 		FreeNodes(n, Hstr, smallsize);
@@ -818,6 +1324,77 @@ void Test_NonZeroElementsInFactors(size_m x, size_m y, cmnode **Gstr, dtype* B, 
 	
 }
 
+void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
+{
+	printf("----Test LU fact-----\n");
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LUrec = alloc_arr<dtype>(n * n);
+	dtype *U = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	int *ipiv = alloc_arr<int>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	int nbl = n / 2;
+
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, Hc, ldh);
+
+	// for stability
+	for (int i = 0; i < n; i++)
+	{
+		H[i + ldh * i] += 1.0;
+		Hc[i + ldh * i] += 1.0;
+	}
+
+	cumnode *HCstr;
+	printf("Compress\n");
+	UnsymmRecCompressStruct(n, Hc, ldh, HCstr, smallsize, eps, method);
+	printf("LU\n");
+	UnsymmLUfact(n, HCstr, ipiv, smallsize);
+	printf("Restore\n");
+	UnsymmResRestoreStruct(n, HCstr, LUrec, ldlu, smallsize);
+
+	printf("Copy factors\n");
+	zlacpy("L", &n, &n, LUrec, &ldlu, L, &ldl);
+	for (int i = 0; i < n; i++)
+		L[i + ldl * i] = 1.0;
+
+	for (int j = 0; j < 2; j++)
+		zlaswp(&nbl, &L[j * nbl + ldl * j * nbl], &ldl, &ione, &nbl, &ipiv[j * nbl], &mione);
+	
+	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
+
+	printf("Gemm A:= A - LU\n");
+	// A = A - Lrec * Urec
+	zgemm("No", "No", &n, &n, &n, &alpha_mone, L, &ldl, U, &ldu, &beta_one, H, &ldh);
+
+	norm = zlange("Frob", &n, &n, H, &ldh, NULL);
+	sprintf(str, "Struct: n = %d", n);
+	//AssertLess(norm, eps, str);
+
+	if (norm < eps) printf("Norm %10.8e < eps %10.8lf: PASSED\n", norm, eps);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED\n", norm, eps);
+
+	FreeUnsymmNodes(n, HCstr, smallsize);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(L);
+	free_arr(U);
+	free_arr(LUrec);
+
+}
 
 
 

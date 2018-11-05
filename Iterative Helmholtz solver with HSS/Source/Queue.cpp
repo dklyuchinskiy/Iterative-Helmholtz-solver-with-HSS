@@ -50,7 +50,7 @@ void push(struct my_queue* &q, cmnode* node)
 			q->last = item;
 		}
 #else
-		q->last->next = item; // кладем в указатель последнего елемента новый item
+		q->last->next = item; // кладем в указатель последнего элемента новый item
 		q->last = item; // т.к. добавился в конец новый элемент, то переносим указатель last на него
 #endif
 	}
