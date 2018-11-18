@@ -1622,8 +1622,8 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	}
 
 #ifdef PRINT
-	for (int i = 0; i < n; i++)
-		if (ipiv[i] != i + 1) printf("GLOBAL IPIV: row %d with %d\n", i + 1, ipiv[i]);
+//	for (int i = 0; i < n; i++)
+	//	if (ipiv[i] != i + 1) printf("GLOBAL IPIV: row %d with %d\n", i + 1, ipiv[i]);
 #endif
 
 	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
@@ -1659,8 +1659,10 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
 	AssertLess(norm, eps, str);
 
-//	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
-//	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+#ifdef PRINT
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+#endif
 
 	FreeUnsymmNodes(n, HCstr, smallsize);
 	free_arr(H);

@@ -267,83 +267,81 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 	dtype wkopt;
 	double ropt;
 
-	if (compare_str(3, method, "SVD"))
-	{
-		dtype *VT = (dtype*)malloc(n1 * n1 * sizeof(dtype)); int ldvt = n1;
-		double *S = (double*)malloc(mn * sizeof(double));
+	dtype *VT = (dtype*)malloc(n1 * n1 * sizeof(dtype)); int ldvt = n1;
+	double *S = (double*)malloc(mn * sizeof(double));
 #ifndef FULL_SVD
-		zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
-		lwork = (int)wkopt.real();
-		dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
-		double *rwork = (double*)malloc(5 * mn * sizeof(double));
+	zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
+	lwork = (int)wkopt.real();
+	dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
+	double *rwork = (double*)malloc(5 * mn * sizeof(double));
 
-		// A = U1 * S * V1
-		zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, work, &lwork, rwork, &info);
+	// A = U1 * S * V1
+	zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, work, &lwork, rwork, &info);
 #else
-		dtype *U = (dtype*)malloc(n2 * n2 * sizeof(dtype)); int ldu = n2;
+	dtype *U = (dtype*)malloc(n2 * n2 * sizeof(dtype)); int ldu = n2;
 
-		// Workspace Query
-		zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
-		lwork = (int)wkopt.real();
-		dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
-		double *rwork = (double*)malloc(5 * mn * sizeof(double));
+	// Workspace Query
+	zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, &wkopt, &lwork, &ropt, &info);
+	lwork = (int)wkopt.real();
+	dtype *work = (dtype*)malloc(lwork * sizeof(dtype));
+	double *rwork = (double*)malloc(5 * mn * sizeof(double));
 
-		// A = U1 * S * V1
-		zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, work, &lwork, rwork, &info);
+	// A = U1 * S * V1
+	zgesvd("All", "All", &n2, &n1, A, &lda, S, U, &ldu, VT, &ldvt, work, &lwork, rwork, &info);
 #endif
 
-		for (int j = 0; j < mn; j++)
+	for (int j = 0; j < mn; j++)
+	{
+		if (S[j] / S[0] < eps)
 		{
-			if (S[j] / S[0] < eps)
-			{
 			//	printf("S[%d] / S[0] = %20.18lf\n", j, S[j] / S[0]);
 			//	printf("S[%d] = %20.18lf\n", j, S[j]);
 			//	printf("S[0] = %20.18lf\n", S[0]);
-				break;
-			}
-			Astr->p = j + 1;
-#ifndef FULL_SVD
-#pragma omp parallel for simd schedule(runtime)
-			for (int i = 0; i < n2; i++)
-				A[i + lda * j] *= S[j];
-#else
-#pragma omp parallel for simd schedule(runtime)
-			for (int i = 0; i < n2; i++)
-				U[i + ldu * j] *= S[j];
-		
-#endif
+			break;
 		}
+		Astr->p = j + 1;
+#ifndef FULL_SVD
+#pragma omp parallel for simd schedule(simd:static)
+		for (int i = 0; i < n2; i++)
+			A[i + lda * j] *= S[j];
+#else
+#pragma omp parallel for simd schedule(runtime)
+		for (int i = 0; i < n2; i++)
+			U[i + ldu * j] *= S[j];
 
-		// Alloc new node
-		Astr->U = (dtype*)malloc(n2 * Astr->p * sizeof(dtype));
-		Astr->VT = (dtype*)malloc(Astr->p * n1 * sizeof(dtype));
+#endif
+	}
 
-		Astr->n2 = n2;
-		Astr->n1 = n1;
+	// Alloc new node
+	Astr->U = (dtype*)malloc(n2 * Astr->p * sizeof(dtype));
+	Astr->VT = (dtype*)malloc(Astr->p * n1 * sizeof(dtype));
+
+	Astr->n2 = n2;
+	Astr->n1 = n1;
 
 #ifndef FULL_SVD
-		zlacpy("All", &n2, &Astr->p, A, &lda, Astr->U, &n2);
-		zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
+	zlacpy("All", &n2, &Astr->p, A, &lda, Astr->U, &n2);
+	zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
 #else
-		zlacpy("All", &n2, &Astr->p, U, &ldu, Astr->U, &n2);
-		zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
+	zlacpy("All", &n2, &Astr->p, U, &ldu, Astr->U, &n2);
+	zlacpy("All", &Astr->p, &n1, VT, &ldvt, Astr->VT, &Astr->p);
 #endif
 
 #ifdef DEBUG
-		printf("LowRankStructure function after SVD: n2 = %d, n1 = %d, p = %d\n", n2, n1, Astr->p);
-		//	print(n2, Astr->p, Astr->U, n2, "U");
-		//	print(Astr->p, n1, Astr->VT, Astr->p, "VT");
+	printf("LowRankStructure function after SVD: n2 = %d, n1 = %d, p = %d\n", n2, n1, Astr->p);
+	//	print(n2, Astr->p, Astr->U, n2, "U");
+	//	print(Astr->p, n1, Astr->VT, Astr->p, "VT");
 
 #endif
-		free_arr(VT);
-		free_arr(work);
-		free_arr(rwork);
-		free_arr(S);
+	free_arr(VT);
+	free_arr(work);
+	free_arr(rwork);
+	free_arr(S);
 
 #ifdef FULL_SVD
-		free_arr(U);
+	free_arr(U);
 #endif
-	}
+
 	return;
 }
 
@@ -732,8 +730,9 @@ void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, ch
 		zlaswp(&Astr->A21->p, Astr->A21->U, &n2, &ione, &n2, &ipiv[n1], &ione);
 
 		// Adjust pivot indexes to level up
+#pragma omp parallel for simd schedule(simd:static)
 		for (int i = n1; i < n; i++)
-			ipiv[i] = ipiv[i] + n1;
+			ipiv[i] += n1;
 	}
 }
 #endif
@@ -812,20 +811,16 @@ void UnsymmRecMultLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype 
 		dtype *Y21 = alloc_arr2<dtype>(n2 * m); int ldy21 = n2;
 		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
 		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
-		dtype *inter1 = alloc_arr2<dtype>(n2 * n1); // column major - lda = column
-		dtype *inter2 = alloc_arr2<dtype>(n1 * n2);
+		dtype *inter1 = alloc_arr2<dtype>(Astr->A21->p * m); // column major - lda = column
+		dtype *inter2 = alloc_arr2<dtype>(Astr->A12->p * m);
 
-		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
-		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter1, &n2);
+		// Y21 = inter1 (n2 x n1) * X(1...n1, :) = (n2 x p) * (p x n1) * (n1 * m)
+		zgemm("No", "No", &Astr->A21->p, &m, &n1, &alpha, Astr->A21->VT, &Astr->A21->p, &X[0 + 0 * ldx], &ldx, &beta, inter1, &Astr->A21->p);
+		zgemm("No", "No", &n2, &m, &Astr->A21->p, &alpha, Astr->A21->U, &n2, inter1, &Astr->A21->p, &beta, Y21, &ldy21);
 
-		// Y21 = inter1 (n2 x n1) * X(1...n1, :) (n1 x n)
-		zgemm("No", "No", &n2, &m, &n1, &alpha, inter1, &n2, &X[0 + 0 * ldx], &ldx, &beta, Y21, &ldy21);
-
-		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
-		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter2, &n1);
-
-		// Y12 = inter2 (n1 x n2) * X(n1...m, :) (n2 x n)
-		zgemm("No", "No", &n1, &m, &n2, &alpha, inter2, &n1, &X[n1 + 0 * ldx], &ldx, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+		// Y12 = inter2 (n1 x n2) * X(n1...m, :) = (n1 x p) * (p x n2) * (n2 x m)
+		zgemm("No", "No", &Astr->A12->p, &m, &n2, &alpha, Astr->A12->VT, &Astr->A12->p, &X[n1 + 0 * ldx], &ldx, &beta, inter2, &Astr->A12->p);
+		zgemm("No", "No", &n1, &m, &Astr->A12->p, &alpha, Astr->A12->U, &n1, inter2, &Astr->A12->p, &beta, Y12, &ldy12);
 
 		UnsymmRecMultLStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultLStruct(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, smallsize);
@@ -868,20 +863,16 @@ void UnsymmRecMultRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype 
 		dtype *Y21 = alloc_arr2<dtype>(m * n1); int ldy21 = m;
 		dtype *Y11 = alloc_arr2<dtype>(m * n1); int ldy11 = m;
 		dtype *Y22 = alloc_arr2<dtype>(m * n2); int ldy22 = m;
-		dtype *inter1 = alloc_arr2<dtype>(n2 * n1); // column major - lda = column
-		dtype *inter2 = alloc_arr2<dtype>(n1 * n2);
+		dtype *inter1 = alloc_arr2<dtype>(m * Astr->A21->p); // column major - lda = column
+		dtype *inter2 = alloc_arr2<dtype>(m * Astr->A12->p);
 
-		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
-		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter1, &n2);
+		// Y21 = X(..., n1:n) * inter1 (n2 x n1) = (m x n2) * (n2 x p) * (p x n1)
+		zgemm("No", "No", &m, &Astr->A21->p, &n2, &alpha, &X[0 + ldx * n1], &ldx, Astr->A21->U, &n2, &beta, inter1, &m);
+		zgemm("No", "No", &m, &n1, &Astr->A21->p, &alpha, inter1, &m, Astr->A21->VT, &Astr->A21->p, &beta, Y21, &ldy21);
 
-		// Y21 = X(..., n1:n) * inter1 (n2 x n1) = (m x n1)
-		zgemm("No", "No", &m, &n1, &n2, &alpha, &X[0 + ldx * n1], &ldx, inter1, &n2, &beta, Y21, &ldy21);
-
-		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
-		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter2, &n1);
-
-		// Y12 = X(..., 0:n1) * inter2 (n1 x n2)  = (m x n2)
-		zgemm("No", "No", &m, &n2, &n1, &alpha, &X[0 + ldx * 0], &ldx, inter2, &n1, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+		// Y12 = X(..., 0:n1) * inter2 (n1 x n2)  = (m x n1) * (n1 x p) * (p x n2)
+		zgemm("No", "No", &m, &Astr->A12->p, &n1, &alpha, &X[0 + ldx * 0], &ldx, Astr->A12->U, &n1, &beta, inter2, &m);
+		zgemm("No", "No", &m, &n2, &Astr->A12->p, &alpha, inter2, &m, Astr->A12->VT, &Astr->A12->p, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
 
 		UnsymmRecMultRStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultRStruct(n2, m, Astr->right, &X[0 + ldx * n1], ldx, Y22, ldy22, smallsize);
@@ -922,14 +913,12 @@ void UnsymmRecMultUpperLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, d
 		dtype *Y12 = alloc_arr2<dtype>(n1 * m); int ldy12 = n1;
 		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
 		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
-		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+		dtype *inter = alloc_arr2<dtype>(Astr->A12->p * m);
 
-		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
-		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter, &n1);
-
-		// Y12 = inter2 (n1 x n2) * X(n1...m, :) (n2 x n)
-		zgemm("No", "No", &n1, &m, &n2, &alpha, inter, &n1, &X[n1 + 0 * ldx], &ldx, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
-
+		// Y12 = U12 * V12T *  * X(n1...m, :) = (n1 x p) * (p x n2) * (n2 x m)
+		zgemm("No", "No", &Astr->A12->p, &m, &n2, &alpha, Astr->A12->VT, &Astr->A12->p, &X[n1 + 0 * ldx], &ldx, &beta, inter, &Astr->A12->p);
+		zgemm("No", "No", &n1, &m, &Astr->A12->p, &alpha, Astr->A12->U, &n1, inter, &Astr->A12->p, &beta, Y12, &ldy12);
+		
 		UnsymmRecMultUpperLStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultUpperLStruct(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, smallsize);
 
@@ -962,13 +951,12 @@ void UnsymmRecMultUpperRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, d
 		dtype *Y12 = alloc_arr2<dtype>(m * n2); int ldy12 = m;
 		dtype *Y11 = alloc_arr2<dtype>(m * n1); int ldy11 = m;
 		dtype *Y22 = alloc_arr2<dtype>(m * n2); int ldy22 = m;
-		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+		dtype *inter = alloc_arr2<dtype>(m * Astr->A12->p);
+		double time;
 
-		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
-		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter, &n1);
-
-		// Y12 = X(..., 0:n1) * inter2 (n1 x n2)  = (m x n2)
-		zgemm("No", "No", &m, &n2, &n1, &alpha, &X[0 + ldx * 0], &ldx, inter, &n1, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+		// Y12 =  X(..., 0:n1) * U12 * V12 = (m x n1) * (n1 x p) * (p x n2)
+		zgemm("No", "No", &m, &Astr->A12->p, &n1, &alpha, &X[0 + ldx * 0], &ldx, Astr->A12->U, &n1, &beta, inter, &m);
+		zgemm("No", "No", &m, &n2, &Astr->A12->p, &alpha, inter, &m, Astr->A12->VT, &Astr->A12->p, &beta, Y12, &ldy12);
 
 		UnsymmRecMultUpperRStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultUpperRStruct(n2, m, Astr->right, &X[0 + ldx * n1], ldx, Y22, ldy22, smallsize);
@@ -1003,14 +991,12 @@ void UnsymmRecMultLowerLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, d
 		dtype *Y21 = alloc_arr2<dtype>(n2 * m); int ldy21 = n2;
 		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
 		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
-		dtype *inter = alloc_arr2<dtype>(n2 * n1); // column major - lda = column
+		dtype *inter = alloc_arr2<dtype>(Astr->A21->p * m); // column major - lda = column
 
-		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
-		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter, &n2);
-
-		// Y21 = inter1 (n2 x n1) * X(1...n1, :) (n1 x n)
-		zgemm("No", "No", &n2, &m, &n1, &alpha, inter, &n2, &X[0 + 0 * ldx], &ldx, &beta, Y21, &ldy21);
-
+		// Y21 = U21 * V21T * X = (n2 x p) * (p x n1) * (n1 x m)
+		zgemm("No", "No", &Astr->A21->p, &m, &n1, &alpha, Astr->A21->VT, &Astr->A21->p, &X[0 + 0 * ldx], &ldx, &beta, inter, &Astr->A21->p);
+		zgemm("No", "No", &n2, &m, &Astr->A21->p, &alpha, Astr->A21->U, &n2, inter, &Astr->A21->p, &beta, Y21, &ldy21);
+	
 		UnsymmRecMultLowerLStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultLowerLStruct(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, smallsize);
 
@@ -1044,13 +1030,11 @@ void UnsymmRecMultLowerRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, d
 		dtype *Y21 = alloc_arr2<dtype>(m * n1); int ldy21 = m;
 		dtype *Y11 = alloc_arr2<dtype>(m * n1); int ldy11 = m;
 		dtype *Y22 = alloc_arr2<dtype>(m * n2); int ldy22 = m;
-		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+		dtype *inter = alloc_arr2<dtype>(m * Astr->A21->p);
 
-		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
-		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter, &n2);
-
-		// Y21 = X(..., n1:n) * inter1 (n2 x n1) = (m x n1)
-		zgemm("No", "No", &m, &n1, &n2, &alpha, &X[0 + ldx * n1], &ldx, inter, &n2, &beta, Y21, &ldy21);
+		// Y21 = X * U21 * V21T = (m x n2) * (n2 x p) * (p x n1)
+		zgemm("No", "No", &m, &Astr->A21->p, &n2, &alpha, &X[0 + ldx * n1], &ldx, Astr->A21->U, &n2, &beta, inter, &m);
+		zgemm("No", "No", &m, &n1, &Astr->A21->p, &alpha, inter, &m, Astr->A21->VT, &Astr->A21->p, &beta, Y21, &ldy21);
 
 		UnsymmRecMultLowerRStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
 		UnsymmRecMultLowerRStruct(n2, m, Astr->right, &X[0 + ldx * n1], ldx, Y22, ldy22, smallsize);

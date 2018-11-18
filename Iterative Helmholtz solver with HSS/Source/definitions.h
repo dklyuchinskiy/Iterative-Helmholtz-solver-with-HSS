@@ -115,7 +115,7 @@ struct my_queue2 {
 #define ONLINE
 #endif
 
-#define FULL_SVD
+//#define FULL_SVD
 
 //#define DIM_3D
 

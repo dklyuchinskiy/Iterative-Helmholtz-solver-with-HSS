@@ -218,6 +218,11 @@ int main()
 //	Test_MyLURecFact(7, 1e-4, "SVD", 3);
 //	Test_MyLURecFact(20, 1e-8, "SVD", 5);
 //	TestRowInterchange(5, 7, 1e-8);
+
+
+	// performance test
+//	Test_UnsymmLUfact(5000, 1e-8, "SVD", 200);
+
 	system("pause");
 
 #if 1
