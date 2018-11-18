@@ -626,7 +626,6 @@ void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, do
 
 	if (n <= smallsize)
 	{
-		//printf("Apply to A21\n");
 		ztrsm("Right", "Up", "No", "NonUnit", &Astr->p, &n, &alpha, R->A21->A, &n, Astr->VT, &Astr->p);
 	}
 	else
@@ -635,23 +634,12 @@ void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, do
 		dtype *Y = alloc_arr<dtype>(Astr->p * n); int ldy = Astr->p;
 
 		// Rinv = R^{-1}
-		//printf("InvR\n");
-#if 0
-		UnsymmCompRecInvStruct(n, R, Rinv, smallsize, eps, method);
-#else
 		UnsymmCompRecInvRightTriangStruct(n, R, Rinv, smallsize, eps, method);
-#endif
 
 		// Apply Rinv to the right of A21 VT (save result in Y)
-		//printf("RecMultR\n");
-#if 0
-		UnsymmRecMultRStruct(n, Astr->p, Rinv, Astr->VT, Astr->p, Y, ldy, smallsize);
-#else
 		UnsymmRecMultUpperRStruct(n, Astr->p, Rinv, Astr->VT, Astr->p, Y, ldy, smallsize);
-#endif
 
 		// Replace A21 VT with Y
-		//printf("Replace\n");
 		zlacpy("All", &Astr->p, &n, Y, &ldy, Astr->VT, &Astr->p);
 
 		free_arr(Y);
@@ -667,9 +655,6 @@ void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int sma
 
 	if (n <= smallsize)
 	{
-		//printf("swap rows in U");
-		//zlaswp(&A12->p, A12->U, &n, &ione, &n, ipiv, &ione);
-		//printf("Apply to A12\n");
 		ztrsm("Left", "Low", "No", "Unit", &n, &A12->p, &alpha, L->A21->A, &n, A12->U, &n);
 	}
 	else
@@ -677,51 +662,11 @@ void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int sma
 		cumnode* Linv;
 		dtype *Y = alloc_arr<dtype>(n * A12->p); int ldy = n;
 
-#if 0
-		int nleaves = GetNumberOfLeaves(A11);
-		int *dist = alloc_arr<int>(nleaves);
-		int count = 0;
-		int nn = 0;
-
-		GetDistances(A11, dist, count);
-#endif
-
-#ifdef PRINT
-		if (count != nleaves) printf("ERROR NLEAVES!\n");
-		printf("Nleaves = %d inside ApplyToA12 n = %d\n", nleaves, n);
-#endif
 		// Linv = L^{-1}
-
-#if 0
-		UnsymmCompRecInvStruct(n, L, Linv, smallsize, eps, method);
-#else
 		UnsymmCompRecInvLeftTriangStruct(n, L, Linv, smallsize, eps, method);
-#endif
 
-#ifdef PRINT
-		printf("\nipiv inside\n");
-		for (int i = 0; i < n; i++)
-			printf("ipiv[%d] = %d\n", i, ipiv[i]);
-#endif
-
-#if 0
-		for (int i = 0; i < nleaves; i++)
-		{
-		//	printf("Dist[%d] = %d\n", i, dist[i]);
-			zlaswp(&A12->p, &A12->U[nn], &n, &ione, &dist[i], &ipiv[nn], &ione);
-			nn += dist[i];
-		}
-
-		if (nn != n) printf("ERROR DISTANCE!\n");
-		free_arr(dist);
-#endif
-
-#if 0
-		// Apply Rinv to the right of A21 VT (save result in Y)
-		UnsymmRecMultLStruct(n, A12->p, Linv, A12->U, n, Y, ldy, smallsize);
-#else
+		// Apply L^{-1} to U12
 		UnsymmRecMultLowerLStruct(n, A12->p, Linv, A12->U, n, Y, ldy, smallsize);
-#endif
 
 		// Replace A21 VT with Y
 		zlacpy("All", &n, &A12->p, Y, &ldy, A12->U, &n);
@@ -752,88 +697,43 @@ void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, ch
 	{
 		int n2 = (int)ceil(n / 2.0);
 		int n1 = n - n2;
-#if 0
-		cumnode* Da;
-		printf("Copy\n");
-		CopyUnsymmStruct(n1, Astr->left, Da, smallsize);
-#endif
+
+		// LU for A11
 		UnsymmLUfact(n1, Astr->left, &ipiv[0], smallsize, eps, method);
 
-		//Apply to A21: = U1 * V1T * (UP ^ {-1}) or to solve triangular system X * UP = VT
+		// Apply to A21: = U1 * V1T * (UP ^ {-1}) or to solve triangular system X * UP = VT
 		ApplyToA21(n1, Astr->left, Astr->A21, Astr->left, smallsize, eps, method);
 
+		// Swap row in A12
 		zlaswp(&Astr->A12->p, Astr->A12->U, &n1, &ione, &n1, ipiv, &ione);
 
-		//Apply to A12: =  (L ^ {-1}) (P ^ {-1}) * U2 * V2T or to solve triangular system  L * X  = (P ^ {-1}) * U
+		// Apply to A12: =  (L ^ {-1}) (P ^ {-1}) * U2 * V2T or to solve triangular system  L * X  = (P ^ {-1}) * U
 		ApplyToA12(n1, Astr->left, Astr->A12, Astr->left, ipiv, smallsize, eps, method);
 
-		//Double update D:= D - U1 * V1T * (U^{-1}) * (L^{-1}) * U2 * V2T
-#if 0
-		dtype *G1 = alloc_arr<dtype>(n2 * n1); int ldg1 = n2;
-		dtype *G2 = alloc_arr<dtype>(n1 * n2); int ldg2 = n1;
-		dtype *RES = alloc_arr<dtype>(n2 * n2); int ldr = n2;
-
-		printf("Update 2.1\n");
-		zgemm("no", "no", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, G1, &ldg1);
-		printf("Update 2.2\n");
-		zgemm("no", "no", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, G2, &ldg2);
-		printf("Update 2.3\n");
-		zgemm("no", "no", &n2, &n2, &n1, &alpha, G1, &ldg1, G2, &ldg2, &beta, RES, &ldr);
-
-		// D: = D - RES
-		printf("Update D:= D - RES\n");
-		for (int j = 0; j < n2; j++)
-			for (int i = 0; i < n2; i++)
-				Astr->right->A21->A[i + n2 * j] -= RES[i + n2 * j];
-
-		free_arr(G1);
-		free_arr(G2);
-		free_arr(RES);
-#else
-		
-
+		// Double update D:= D - U1 * V1T * (U^{-1}) * (L^{-1}) * U2 * V2T		
 		// Update compressed block A[2][2]
 		dtype *Y = alloc_arr<dtype>(Astr->A21->p * Astr->A12->p); int ldy = Astr->A21->p;
 		zgemm("no", "no", &Astr->A21->p, &Astr->A12->p, &n1, &alpha, Astr->A21->VT, &Astr->A21->p, Astr->A12->U, &n1, &beta, Y, &ldy);
 	
-#if 1
 		cumnode* Bstr;
 		// (n2 x n2) = (n2 x n2) - (n2 x p2) * (p2 x p1) * (p1 x n2)
 		UnsymmCompUpdate3Struct(n2, Astr->A21->p, Astr->A12->p, Astr->right, alpha_mone, Y, ldy, Astr->A21->U, n2, Astr->A12->VT, Astr->A12->p, Bstr, smallsize, eps, method);
 
 		FreeUnsymmNodes(n2, Astr->right, smallsize);
 		CopyUnsymmStruct(n2, Bstr, Astr->right, smallsize);
-
 		FreeUnsymmNodes(n2, Bstr, smallsize);
-#endif
+
 		free_arr(Y);
-#endif
-#if 1
+
+		// LU for A22
 		UnsymmLUfact(n2, Astr->right, &ipiv[n1], smallsize, eps, method);
-#if 0
-		int nleaves = GetNumberOfLeaves(Astr->right);
-		int *dist = alloc_arr<int>(nleaves);
-		int count = 0;
-		int nn = 0;
 
-		GetDistances(Astr->right, dist, count);
-
-	//	printf("nleaves: %d\n", nleaves);
-
-		for (int i = 0; i < nleaves; i++)
-		{
-			printf("Dist[%d] = %d\n", i, dist[i]);
-			zlaswp(&Astr->A21->p, &Astr->A21->U[nn], &n2, &ione, &dist[i], &ipiv[n1 + nn], &ione);
-			nn += dist[i];
-		}
-#endif
-
+		// Swap rows in A21
 		zlaswp(&Astr->A21->p, Astr->A21->U, &n2, &ione, &n2, &ipiv[n1], &ione);
-#endif
+
 		// Adjust pivot indexes to level up
 		for (int i = n1; i < n; i++)
 			ipiv[i] = ipiv[i] + n1;
-
 	}
 }
 #endif

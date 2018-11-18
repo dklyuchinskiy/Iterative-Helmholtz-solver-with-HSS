@@ -19,7 +19,7 @@ void TestAll()
 
 	printf("***** TEST LIBRARY FUNCTIONS *******\n");
 	printf("****Complex precision****\n");
-#if 0
+#if 1
 	runner.RunTest(Shell_LowRankApprox, Test_LowRankApproxStruct, "Test_LowRankApprox");
 	runner.RunTest(Shell_SymRecCompress, Test_SymRecCompressStruct, "Test_SymRecCompress");
 	runner.RunTest(Shell_SymRecCompress, Test_UnsymmRecCompressStruct, "Test_UnsymmRecCompress");
@@ -1561,11 +1561,6 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	int ldu = n;
 	int ldl = n;
 
-	int depth = n / smallsize;
-
-	int nbl = n / depth;
-	int n2 = 15;
-
 	dtype alpha_one = 1.0;
 	dtype alpha_mone = -1.0;
 	dtype beta_one = 1.0;
@@ -1590,8 +1585,6 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 		Hc[i + ldh * i] -= 3.0;
 	}
 #endif
-
-	//	print(n, n, Hinit, ldh, "A");
 
 	cumnode *HCstr;
 #ifdef PRINT
@@ -1635,57 +1628,11 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 
 	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
 
-#ifdef PRINT
-	printf("\nGet Nleaves\n");
-#endif
-
-#if 0
-	int nleaves = 0;
-	nleaves = GetNumberOfLeaves(HCstr);
-	int *dist = alloc_arr<int>(nleaves);
-	int count = 0;
-	int nn = 0;
-
-#ifdef  PRINT
-	printf("\nget distances\n");
-#endif //  PRINT
-
-	GetDistances(HCstr, dist, count);
-
-	if (count != nleaves) printf("!!!ERROR NLEAVES!!!\n");
-#endif
-
-#ifdef PRINT
-	printf("Nleaves: %d\n", nleaves);
-	for (int i = 0; i < n; i++)
-		printf("ipiv[%d] = %d\n", i, ipiv[i]);
-#endif
-
-#if 0
-	for (int i = 0; i < nleaves; i++)
-	{
-#ifdef PRINT
-		printf("Dist[%d] = %d\n", i, dist[i]);
-#endif
-		//zlaswp(&dist[i], &L[nn + ldl * nn], &ldl, &ione, &dist[i], &ipiv[nn], &mione);
-		zlaswp(&n, &L[nn + ldl * 0], &ldl, &ione, &dist[i], &ipiv[nn], &mione);
-		nn += dist[i];
-	}
-	if (nn != n) printf("!!!ERROR DISTANCE!!!\n");
-#endif	
-
-//	for (int j = 0; j < depth; j++)
-//		zlaswp(&nbl, &L[j * nbl + ldl * j * nbl], &ldl, &ione, &nbl, &ipiv[j * nbl], &mione);
-
 	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
 	time = omp_get_wtime() - time;
 
 #ifdef PRINT
 	printf(" time = %lf\n", time);
-#endif
-	//	print(n, n, LUrec, ldlu, "L + U");
-	//	printf("\n");
-#ifdef PRINT
 	printf("LU MKL");
 #endif
 	time = omp_get_wtime();
@@ -1697,12 +1644,6 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 		if (ipiv2[i] != i + 1) printf("ROW interchange\n");
 #endif
 
-	//	print(n, n, H, ldh, "L + U MKL");
-	//	printf("\n");
-
-	//	printf("Gemm A:= A - LU\n");
-	// A = A - Lrec * Urec
-	//	zgemm("No", "No", &n, &n, &n, &alpha_mone, L, &ldl, U, &ldu, &beta_one, Hinit, &ldh);
 #ifdef PRINT
 	printf(" time = %lf\nZGEMM", time);
 #endif
@@ -1714,18 +1655,12 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	printf(" time = %lf\n", time);
 #endif
 
-	//	print(n, n, Hc, ldlu, "L*U");
-	//	printf("\n");
-	//	print(n, n, Hinit, ldh, "A - LU");
-
-	//norm = zlange("Frob", &n, &n, Hinit, &ldh, NULL);
-	int n1 = 3;
 	norm = rel_error_complex(n, n, Hc, Hinit, ldh, eps);
 	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
-//	AssertLess(norm, eps, str);
+	AssertLess(norm, eps, str);
 
-	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
-	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+//	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+//	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
 
 	FreeUnsymmNodes(n, HCstr, smallsize);
 	free_arr(H);
