@@ -19,6 +19,7 @@ void TestAll()
 
 	printf("***** TEST LIBRARY FUNCTIONS *******\n");
 	printf("****Complex precision****\n");
+#if 0
 	runner.RunTest(Shell_LowRankApprox, Test_LowRankApproxStruct, "Test_LowRankApprox");
 	runner.RunTest(Shell_SymRecCompress, Test_SymRecCompressStruct, "Test_SymRecCompress");
 	runner.RunTest(Shell_SymRecCompress, Test_UnsymmRecCompressStruct, "Test_UnsymmRecCompress");
@@ -35,6 +36,18 @@ void TestAll()
 	runner.RunTest(Shell_SymCompRecInv, Test_UnsymmCompRecInvStruct, "Test_UnsymmCompRecInv");
 	runner.RunTest(Shell_CopyStruct, Test_CopyStruct,  "Test_CopyStruct");
 	runner.RunTest(Shell_CopyStruct, Test_CopyUnsymmStruct, "Test_CopyUnsymmStruct");
+	runner.RunTest(Shell_CopyStruct, Test_CopyLfactorStruct, "Test_CopyLfactor");
+	runner.RunTest(Shell_CopyStruct, Test_CopyRfactorStruct, "Test_CopyRfactor");
+	runner.RunTest(Shell_CopyStruct, Test_UnsymmCopyStruct, "Test_UnsymmCopyStruct");
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA21, "Test_ApplyToA21");
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA12, "Test_ApplyToA12");
+	runner.RunTest(Shell_LowRankApprox, Test_PermutLowRankApprox, "Test_PermutLowRankApprox");
+	runner.RunTest(Shell_UnsymmLUfact, Test_MyLURecFact, "Test_MyLURecFact");
+#endif
+
+	runner.RunTest(Shell_UnsymmLUfact, Test_UnsymmLUfact, "Test_LUfact");
+
+	
 
 
 	printf("********************\n");
@@ -48,9 +61,9 @@ void Shell_LowRankApprox(ptr_test_low_rank func, const string& test_name, int &n
 {
 	char method[255] = "SVD";
 
-	for (double eps = 1e-2; eps > 1e-8; eps /= 10)
-		for (int m = 3; m <= 10; m++)
-			for (int n = 1; n <= 10; n++)
+	for (double eps = 1e-2; eps > 1e-9; eps /= 10)
+		for (int m = 3; m <= 40; m++)
+			for (int n = 1; n <= 40; n++)
 			{
 				try
 				{
@@ -74,8 +87,8 @@ void Shell_SymRecCompress(ptr_test_sym_rec_compress func, const string& test_nam
 	char method[255] = "SVD";
 	int smallsize = 3;
 
-	for (int n = 3; n <= 10; n++)
-		for (double eps = 1e-2; eps > 1e-8; eps /= 10)
+	for (int n = 3; n <= 15; n++)
+		for (double eps = 1e-2; eps > 1e-9; eps /= 10)
 		{
 			try
 			{
@@ -99,8 +112,8 @@ void Shell_DiagMult(ptr_test_sym_rec_compress func, const string& test_name, int
 	char method[255] = "SVD";
 	int smallsize = 3;
 
-	for (int n = 3; n <= 10; n++)
-		for (double eps = 1e-2; eps > 1e-8; eps /= 10)
+	for (double eps = 1e-2; eps > 1e-9; eps /= 10)
+		for (int n = 3; n <= 15; n++)	
 		{
 			try
 			{
@@ -125,9 +138,9 @@ void Shell_RecMultL(ptr_test_mult_diag func, const string& test_name, int &numb,
 	char method[255] = "SVD";
 	int smallsize = 3;
 
-	for (double eps = 1e-2; eps > 1e-8; eps /= 10)
-		for (int n = 3; n <= 10; n++)
-			for (int k = 1; k <= 10; k++)
+	for (double eps = 1e-2; eps > 1e-9; eps /= 10)
+		for (int n = 3; n <= 15; n++)
+			for (int k = 1; k <= 12; k++)
 			{
 				try
 				{
@@ -147,13 +160,50 @@ void Shell_RecMultL(ptr_test_mult_diag func, const string& test_name, int &numb,
 
 }
 
+void Shell_ApplyToA21(ptr_test_mult_diag func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+
+#if 0
+	for (int smallsize = 3; smallsize < 6; smallsize++)
+		for (double eps = 1e-4; eps > 1e-8; eps /= 10)
+			for (int m = smallsize; m <= 40; m++)
+				for (int n = smallsize; n <= 40; n++)
+#endif
+
+#define neps 4
+	double eps[neps] = { 1e-4, 1e-5, 1e-7, 1e-9 };
+
+	for (int smallsize = 3; smallsize < 6; smallsize++)
+		for (int i = 0; i < neps; i++)
+			for (int m = smallsize; m <= 40; m++)
+				for (int n = smallsize; n <= 30; n++)
+				{
+					try
+					{
+						numb++;
+						func(m, n, eps[i], method, smallsize);
+					}
+					catch (runtime_error& e)
+					{
+						++fail_count;
+						cerr << test_name << " fail: " << e.what() << endl;
+					}
+					catch (...) {
+						++fail_count;
+						cerr << "Unknown exception caught" << endl;
+					}
+				}
+
+}
+
 void Shell_Add(ptr_test_add func, const string& test_name, int &numb, int &fail_count)
 {
 	char method[255] = "SVD";
 	int smallsize = 3;
 
 	for (double eps = 1e-4; eps > 1e-9; eps /= 10)
-		for (int n = 3; n <= 10; n++)
+		for (int n = 3; n <= 12; n++)
 			for (int alpha = -10; alpha < 10; alpha += 2)
 				for (int beta = -10; beta < 10; beta += 2)
 				{
@@ -184,8 +234,8 @@ void Shell_SymCompUpdate2(ptr_test_update func, const string& test_name, int &nu
 
 	for (double eps = 1e-3; eps > 1e-9; eps /= 10)
 		for (double alpha = -10; alpha < 10; alpha += 2)
-			for (int n = 3; n <= 10; n++)
-				for (int k = 1; k <= 10; k++)
+			for (int n = 3; n <= 15; n++)
+				for (int k = 2; k <= 12; k++)
 				{
 					try
 					{
@@ -211,9 +261,9 @@ void Shell_UnsymmCompUpdate3(ptr_test_update2 func, const string& test_name, int
 
 	for (double eps = 1e-3; eps > 1e-9; eps /= 10)
 		for (double alpha = -10; alpha < 10; alpha += 2)
-			for (int n = 3; n <= 10; n++)
-				for (int k1 = 1; k1 <= 10; k1 += 2)
-					for (int k2 = 1; k2 <= 10; k2 += 2)
+			for (int n = 3; n <= 30; n += 2)
+				for (int k1 = 1; k1 <= 12; k1 += 2)
+					for (int k2 = 1; k2 <= 12; k2 += 2)
 				{
 					try
 					{
@@ -238,7 +288,7 @@ void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name
 	char method[255] = "SVD";
 	int smallsize = 3;
 
-	for (double eps = 1e-2; eps > 1e-8; eps /= 10)
+	for (double eps = 1e-2; eps > 1e-9; eps /= 10)
 		for (int n = 3; n <= 20; n += 2)
 		{
 			try
@@ -259,13 +309,39 @@ void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name
 
 }
 
+void Shell_UnsymmLUfact(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+
+	for(int smallsize = 3; smallsize < 6; smallsize++)
+		for (double eps = 1e-3; eps > 1e-9; eps /= 10)
+			for (int n = smallsize; n <= 40; n++)
+			{
+				try
+				{
+					numb++;
+					func(n, eps, method, smallsize);
+				}
+				catch (runtime_error& e)
+				{
+					++fail_count;
+					cerr << test_name << " fail: " << e.what() << endl;
+				}
+				catch (...) {
+					++fail_count;
+					cerr << "Unknown exception caught" << endl;
+				}
+			}
+}
+
 void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count)
 {
 	char method[255] = "SVD";
 	int smallsize = 3;
+//	double eps = 1e-2;
 
-	for (double eps = 1e-2; eps > 1e-8; eps /= 10)
-		for (int n = 3; n <= 10; n++)
+	for (double eps = 1e-2; eps > 1e-9; eps /= 10)
+		for (int n = 3; n <= 15; n++)
 		{
 			try
 			{
@@ -388,8 +464,8 @@ void Test_UnsymmRecCompressStruct(int n, double eps, char *method, int smallsize
 
 	int ldh = n;
 
-	Hilbert(n, n, H, ldh);
-	Hilbert(n, n, H1, ldh);
+	Hilbert4(n, n, H, ldh);
+	Hilbert4(n, n, H1, ldh);
 
 #ifdef DEBUG
 	print(n, n, H1, ldh, "H1");
@@ -550,8 +626,8 @@ void Test_UnsymmRecMultLStruct(int n, int k, double eps, char *method, int small
 	int ldy = n;
 	int ldx = n;
 
-	Hilbert(n, n, H, ldh);
-	Hilbert(n, k, X, ldx);
+	Hilbert3(n, n, H, ldh);
+	Hilbert4(n, k, X, ldx);
 
 	zgemm("No", "No", &n, &k, &n, &alpha, H, &ldh, X, &ldx, &beta, Y, &ldy);
 
@@ -604,8 +680,8 @@ void Test_UnsymmRecMultRStruct(int n, int k, double eps, char *method, int small
 	int ldy = k;
 	int ldx = k;
 
-	Hilbert(n, n, H, ldh);
-	Hilbert(k, n, X, ldx);
+	Hilbert4(n, n, H, ldh);
+	Hilbert3(k, n, X, ldx);
 
 	zgemm("No", "No", &k, &n, &n, &alpha, X, &ldx, H, &ldh, &beta, Y, &ldy);
 
@@ -724,8 +800,8 @@ void Test_UnsymmAddStruct(int n, dtype alpha, dtype beta, double eps, char *meth
 	int ldg = n;
 	double norm = 0;
 
-	Hilbert(n, n, H1, ldh);
-	Hilbert(n, n, H1c, ldh);
+	Hilbert3(n, n, H1, ldh);
+	Hilbert3(n, n, H1c, ldh);
 
 #pragma omp parallel for simd schedule(simd:static)
 	for (int j = 0; j < n; j++)
@@ -863,20 +939,15 @@ void Test_UnsymmCompUpdate2Struct(int n, int k, dtype alpha, double eps, char* m
 	double norm = 0;
 
 
-	Hilbert(n, n, HC, ldh);
-	Hilbert(n, n, H, ldh);
+	Hilbert3(n, n, HC, ldh);
+	Hilbert3(n, n, H, ldh);
 
 	Clear(k, k, Y, ldy);
 	Clear(n, k, V, ldv);
 
-#pragma omp parallel for simd schedule(simd:static)
-	for (int i = 0; i < k; i++)
-		Y[i + ldy * i] = i + 1;
 
-#pragma omp parallel for simd schedule(simd:static)
-	for (int j = 0; j < k; j++)
-		for (int i = 0; i < n; i++)
-			V[i + ldv * j] = (i + j + 1);
+	Hilbert2(k, k, Y, ldy);
+	Hilbert4(n, k, V, ldv);
 
 	// C = V * Y
 	zgemm("No", "No", &n, &k, &k, &alpha_one, V, &ldv, Y, &ldy, &beta_zero, C, &ldc);
@@ -932,9 +1003,11 @@ void Test_UnsymmCompUpdate3Struct(int n, int k1, int k2, dtype alpha, double eps
 	dtype beta_one = 1.0;
 	double norm = 0;
 
+	Clear(n, n, HC, ldh);
+	Clear(n, n, H, ldh);
 
-	Hilbert(n, n, HC, ldh);
-	Hilbert(n, n, H, ldh);
+	Hilbert5(n, n, HC, ldh);
+	Hilbert5(n, n, H, ldh);
 
 	Clear(k1, k2, Y, ldy);
 	Clear(n, k1, V1, ldv1);
@@ -942,19 +1015,9 @@ void Test_UnsymmCompUpdate3Struct(int n, int k1, int k2, dtype alpha, double eps
 
 	int kmin = min(k1, k2);
 
-#pragma omp parallel for simd schedule(simd:static)
-	for (int i = 0; i < kmin; i++)
-		Y[i + ldy * i] = i + 1;
-
-#pragma omp parallel for simd schedule(simd:static)
-	for (int j = 0; j < k1; j++)
-		for (int i = 0; i < n; i++)
-			V1[i + ldv1 * j] = (i + j + 1);
-
-#pragma omp parallel for simd schedule(simd:static)
-	for (int j = 0; j < n; j++)
-		for (int i = 0; i < k2; i++)
-			V2[i + ldv2 * j] = (i + j + 2);
+	Hilbert2(k1, k2, Y, ldy);
+	Hilbert3(n, k1, V1, ldv1);
+	Hilbert4(k2, n, V2, ldv2);
 
 	// C = V1 * Y
 	zgemm("No", "No", &n, &k2, &k1, &alpha_one, V1, &ldv1, Y, &ldy, &beta_zero, C, &ldc);
@@ -968,6 +1031,16 @@ void Test_UnsymmCompUpdate3Struct(int n, int k1, int k2, dtype alpha, double eps
 
 	cumnode *Bstr;
 	UnsymmCompUpdate3Struct(n, k1, k2, HCstr, alpha, Y, ldy, V1, ldv1, V2, ldv2, Bstr, smallsize, eps, method);
+#if 0
+	printf("----------\n");
+	printf("A: ");
+	UnsymmPrintRanksInWidthList(HCstr);
+	printf("\nB: ");
+	UnsymmPrintRanksInWidthList(Bstr);
+	printf("---------\n");
+	UnsymmClearStruct(n, HCstr, smallsize)
+	UnsymmCopyStruct(n, Bstr, HCstr, smallsize);
+#endif
 	UnsymmResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
 
 #ifdef DEBUG
@@ -1091,14 +1164,14 @@ void Test_UnsymmCompRecInvStruct(int n, double eps, char *method, int smallsize)
 	dtype beta_one = 1.0;
 	double norm = 0;
 
-	Hilbert(n, n, H, ldh);
-	Hilbert(n, n, Hc, ldh);
+	Hilbert2(n, n, H, ldh);
+	Hilbert2(n, n, Hc, ldh);
 
 	// for stability
 	for (int i = 0; i < n; i++)
 	{
-		H[i + ldh * i] += 1.0;
-		Hc[i + ldh * i] += 1.0;
+		H[i + ldh * i] += 5.0;
+		Hc[i + ldh * i] += 5.0;
 	}
 
 	cumnode *HCstr, *BCstr;
@@ -1155,6 +1228,539 @@ void Test_CopyUnsymmStruct(int n, double eps, char *method, int smallsize)
 	free_arr(H2);
 	free_arr(H1);
 	free_arr(H);
+}
+
+void Test_ApplyToA21(int m, int n, double eps, char* method, int smallsize)
+{
+	dtype *LU = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(m * n);
+	dtype *H2 = alloc_arr2<dtype>(m * n);
+	dtype *H3 = alloc_arr2<dtype>(m * n);
+	int *ipiv = alloc_arr2<int>(n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = m;
+	int info = 0;
+	int ione = 1.0;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	Hilbert3(n, n, LU, n);
+	Hilbert2(m, n, H1, ldh);
+	Hilbert2(m, n, H2, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		LU[i + n * i] -= 5.0;
+	}
+
+	cumnode* LUstr, *Rstr;
+	cmnode* H2str = (cmnode*)malloc(sizeof(cmnode));
+	zgetrf(&n, &n, LU, &n, ipiv, &info);
+
+//	for (int i = 0; i < n; i++)
+	//	if (ipiv[i] != i + 1) printf("ROW CHANGE!\n");
+
+	ztrsm("Right", "Up", "No", "NonUnit", &m, &n, &alpha, LU, &n, H1, &ldh);
+
+	UnsymmRecCompressStruct(n, LU, n, LUstr, smallsize, eps, method);
+	CopyRfactor(n, LUstr, Rstr, smallsize);
+
+	LowRankApproxStruct(m, n, H2, ldh, H2str, eps, method);
+	ApplyToA21(n, LUstr, H2str, Rstr, smallsize, eps, method);
+	zgemm("no", "no", &m, &n, &H2str->p, &alpha, H2str->U, &m, H2str->VT, &H2str->p, &beta, H3, &ldh);
+
+	norm = rel_error_complex(m, n, H3, H1, ldh, eps);
+	sprintf(str, "Struct: sz = %d m = %d n = %d", smallsize, m, n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, LUstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(H3);
+	free_arr(LU);
+	free_arr(ipiv);
+}
+
+void Test_ApplyToA12(int m, int n, double eps, char* method, int smallsize)
+{
+	dtype *LU = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(m * n);
+	dtype *H2 = alloc_arr2<dtype>(m * n);
+	dtype *H3 = alloc_arr2<dtype>(m * n);
+	int *ipiv = alloc_arr2<int>(n);
+	int *ipiv2 = alloc_arr2<int>(n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+	int info = 0;
+	int ione = 1;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	Hilbert3(n, n, LU, n);
+	Hilbert2(n, m, H1, ldh);
+	Hilbert2(n, m, H2, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		LU[i + n * i] -= 5.0;
+	}
+
+	cumnode* LUstr, *Lstr;
+	cmnode* H2str = (cmnode*)malloc(sizeof(cmnode));
+	zgetrf(&n, &n, LU, &n, ipiv, &info);
+
+//	for (int i = 0; i < n; i++)
+	//	if (ipiv[i] != i + 1) printf("ROW CHANGE!\n");
+
+	zlaswp(&m, H1, &ldh, &ione, &n, ipiv, &ione);
+
+	ztrsm("Left", "Low", "No", "Unit", &n, &m, &alpha, LU, &n, H1, &ldh);
+
+	UnsymmRecCompressStruct(n, LU, n, LUstr, smallsize, eps, method);
+	CopyLfactor(n, LUstr, Lstr, smallsize);
+
+	//(правильный тест с пивотингом)
+	// ipiv -> ipiv2
+#ifdef PRINT
+	printf("\nGet Nleaves\n");
+#endif
+	int nleaves = 0;
+	nleaves = GetNumberOfLeaves(LUstr);
+	int *dist = alloc_arr<int>(nleaves);
+	int count = 0;
+	int nn = 0;
+
+#ifdef  PRINT
+	printf("\nget distances\n");
+#endif //  PRINT
+
+#if 0
+	GetDistances(LUstr, dist, count);
+	for (int j = 0; j < nleaves; j++)
+	{
+		for (int i = 0; i < dist[j]; i++)
+		{
+			ipiv2[nn + i] = ipiv[nn + i] - nn;
+		}
+		nn += dist[j];
+	}
+#endif
+
+	//--------------------
+
+	LowRankApproxStruct(n, m, H2, ldh, H2str, eps, method);
+	zlaswp(&H2str->p, H2str->U, &n, &ione, &n, ipiv, &ione);
+
+	ApplyToA12(n, LUstr, H2str, Lstr, ipiv2, smallsize, eps, method);
+	zgemm("no", "no", &n, &m, &H2str->p, &alpha, H2str->U, &n, H2str->VT, &H2str->p, &beta, H3, &ldh);
+
+	norm = rel_error_complex(n, m, H3, H1, ldh, eps);
+	sprintf(str, "Struct: sz = %d n = %d m = %d", smallsize, n, m);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, LUstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(H3);
+	free_arr(LU);
+	free_arr(ipiv);
+}
+
+void Test_UnsymmCopyStruct(int n, double eps, char *method, int smallsize)
+{
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	dtype *Hres = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+
+	//printf("***Test CopyStruct n = %d ", n);
+
+	Hilbert2(n, n, H, ldh);
+	Hilbert2(n, n, H1, ldh);
+	Hilbert2(n, n, H2, ldh);
+
+	cumnode* Hstr, *Hcp_str;
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+	UnsymmRecCompressStruct(n, H1, ldh, Hcp_str, smallsize, eps, method);
+
+	UnsymmClearStruct(n, Hcp_str, smallsize);
+
+	UnsymmCopyStruct(n, Hstr, Hcp_str, smallsize);
+	UnsymmResRestoreStruct(n, Hcp_str, Hres, ldh, smallsize);
+
+	norm = rel_error_complex(n, n, H2, Hres, ldh, eps);
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	FreeUnsymmNodes(n, Hcp_str, smallsize);
+	free_arr(H2);
+	free_arr(H1);
+	free_arr(H);
+}
+
+void Test_CopyLfactorStruct(int n, double eps, char *method, int smallsize)
+{
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+
+	//printf("***Test CopyStruct n = %d ", n);
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
+
+	for (int i = 0; i < n; i++)
+		H[i + ldh * i] = H1[i + ldh * i] = 1.0;
+
+	cumnode* Hstr, *Lstr;
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+	CopyLfactor(n, Hstr, Lstr, smallsize);
+	UnsymmResRestoreStruct(n, Lstr, H2, ldh, smallsize);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < n; i++)
+		{
+			if (j > i) H1[i + ldh * j] = 0;
+		}
+
+	norm = rel_error_complex(n, n, H2, H1, ldh, eps);
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	FreeUnsymmNodes(n, Lstr, smallsize);
+	free_arr(H2);
+	free_arr(H1);
+	free_arr(H);
+}
+
+void Test_CopyRfactorStruct(int n, double eps, char *method, int smallsize)
+{
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(n * n);
+	dtype *H2 = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+
+	//printf("***Test CopyStruct n = %d ", n);
+
+	Hilbert(n, n, H, ldh);
+	Hilbert(n, n, H1, ldh);
+
+	for (int i = 0; i < n; i++)
+		H[i + ldh * i] = H1[i + ldh * i] = 1.0;
+
+	cumnode* Hstr, *Rstr;
+	UnsymmRecCompressStruct(n, H, ldh, Hstr, smallsize, eps, method);
+	CopyRfactor(n, Hstr, Rstr, smallsize);
+	UnsymmResRestoreStruct(n, Rstr, H2, ldh, smallsize);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < n; i++)
+		{
+			if (j < i) H1[i + ldh * j] = 0;
+		}
+
+	norm = rel_error_complex(n, n, H2, H1, ldh, eps);
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Hstr, smallsize);
+	FreeUnsymmNodes(n, Rstr, smallsize);
+	free_arr(H2);
+	free_arr(H1);
+	free_arr(H);
+}
+
+void Test_PermutLowRankApprox(int m, int n, double eps, char *method)
+{
+	dtype *H = alloc_arr<dtype>(m * n);
+	dtype *Hinit = alloc_arr<dtype>(m * n);
+	dtype *Hres = alloc_arr<dtype>(m * n);
+	int *ipiv = alloc_arr<int>(m);
+	int *ipiv2 = alloc_arr<int>(m);
+	char str[255];
+
+	int ldh = m;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+
+	Hilbert(m, n, Hinit, ldh);
+	Hilbert(m, n, H, ldh);
+
+	srand((unsigned int)time(0));
+	for (int i = 0; i < m; i++)
+	{
+		ipiv[i] = random(1, m);
+		//printf("ipiv[%d] = %d\n", i, ipiv[i]);
+	}
+
+	zlaswp(&n, Hinit, &ldh, &ione, &m, ipiv, &ione);
+
+	cmnode *Hstr = (cmnode*)malloc(sizeof(cmnode));
+	LowRankApproxStruct(m, n, H, ldh, Hstr, eps, method);
+	//printf("p = %d\n", Hstr->p);
+	zlaswp(&Hstr->p, Hstr->U, &m, &ione, &m, ipiv, &ione);
+	zgemm("no", "no", &m, &n, &Hstr->p, &alpha_one, Hstr->U, &m, Hstr->VT, &Hstr->p, &beta_zero, Hres, &ldh);
+
+	norm = rel_error_complex(m, n, Hres, Hinit, ldh, eps);
+	sprintf(str, "Struct: m = %d n = %d ", m, n);
+	AssertLess(norm, eps, str);
+
+	//if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size m = %d n = %d\n", norm, eps, m, n);
+	//else printf("Norm %10.8lf > eps %10.8e : FAILED for size m = %d n = %d\n", norm, eps, m, n);
+	
+	free(Hstr->U);
+	free(Hstr->VT);
+	free(Hstr);
+	free(H);
+	free(Hinit);
+	free(Hres);
+}
+
+void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
+{
+//#define PRINT
+#ifdef PRINT
+	printf("----Test LU fact n = %d-----\n", n);
+#endif
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LUrec = alloc_arr<dtype>(n * n);
+	dtype *U = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	int *ipiv = alloc_arr<int>(n);
+	int *ipiv2 = alloc_arr<int>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	int depth = n / smallsize;
+
+	int nbl = n / depth;
+	int n2 = 15;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+	int pivot = 0;
+
+#ifdef PRINT
+	printf("filling the matrix...\n");
+#endif
+	Hilbert3(n, n, Hinit, ldh);
+	Hilbert3(n, n, Hc, ldh);
+
+	// for stability
+#if 1
+	for (int i = 0; i < n; i++)
+	{
+		Hinit[i + ldh * i] -= 3.0;
+		Hc[i + ldh * i] -= 3.0;
+	}
+#endif
+
+	//	print(n, n, Hinit, ldh, "A");
+
+	cumnode *HCstr;
+#ifdef PRINT
+	printf("Compress");
+#endif
+	double time = omp_get_wtime();
+	UnsymmRecCompressStruct(n, Hc, ldh, HCstr, smallsize, eps, method);
+//	UnsymmPrintRanksInWidthList(HCstr);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nLU", time);
+#endif
+	time = omp_get_wtime();
+	UnsymmLUfact(n, HCstr, ipiv, smallsize, eps, method);
+//	UnsymmPrintRanksInWidthList(HCstr);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nRestore", time);
+#endif
+	time = omp_get_wtime();
+	UnsymmResRestoreStruct(n, HCstr, LUrec, ldlu, smallsize);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\nCopy factors", time);
+#endif
+	time = omp_get_wtime();
+	zlacpy("L", &n, &n, LUrec, &ldlu, L, &ldl);
+	for (int i = 0; i < n; i++)
+		L[i + ldl * i] = 1.0;
+
+	for (int i = 0; i < n; i++)
+	{
+		if (ipiv[i] != i + 1) pivot++;
+	}
+
+#ifdef PRINT
+	for (int i = 0; i < n; i++)
+		if (ipiv[i] != i + 1) printf("GLOBAL IPIV: row %d with %d\n", i + 1, ipiv[i]);
+#endif
+
+	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
+
+#ifdef PRINT
+	printf("\nGet Nleaves\n");
+#endif
+
+#if 0
+	int nleaves = 0;
+	nleaves = GetNumberOfLeaves(HCstr);
+	int *dist = alloc_arr<int>(nleaves);
+	int count = 0;
+	int nn = 0;
+
+#ifdef  PRINT
+	printf("\nget distances\n");
+#endif //  PRINT
+
+	GetDistances(HCstr, dist, count);
+
+	if (count != nleaves) printf("!!!ERROR NLEAVES!!!\n");
+#endif
+
+#ifdef PRINT
+	printf("Nleaves: %d\n", nleaves);
+	for (int i = 0; i < n; i++)
+		printf("ipiv[%d] = %d\n", i, ipiv[i]);
+#endif
+
+#if 0
+	for (int i = 0; i < nleaves; i++)
+	{
+#ifdef PRINT
+		printf("Dist[%d] = %d\n", i, dist[i]);
+#endif
+		//zlaswp(&dist[i], &L[nn + ldl * nn], &ldl, &ione, &dist[i], &ipiv[nn], &mione);
+		zlaswp(&n, &L[nn + ldl * 0], &ldl, &ione, &dist[i], &ipiv[nn], &mione);
+		nn += dist[i];
+	}
+	if (nn != n) printf("!!!ERROR DISTANCE!!!\n");
+#endif	
+
+//	for (int j = 0; j < depth; j++)
+//		zlaswp(&nbl, &L[j * nbl + ldl * j * nbl], &ldl, &ione, &nbl, &ipiv[j * nbl], &mione);
+
+	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+	//	print(n, n, LUrec, ldlu, "L + U");
+	//	printf("\n");
+#ifdef PRINT
+	printf("LU MKL");
+#endif
+	time = omp_get_wtime();
+	zgetrf(&n, &n, H, &ldh, ipiv2, &info);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	for (int i = 0; i < n; i++)
+		if (ipiv2[i] != i + 1) printf("ROW interchange\n");
+#endif
+
+	//	print(n, n, H, ldh, "L + U MKL");
+	//	printf("\n");
+
+	//	printf("Gemm A:= A - LU\n");
+	// A = A - Lrec * Urec
+	//	zgemm("No", "No", &n, &n, &n, &alpha_mone, L, &ldl, U, &ldu, &beta_one, Hinit, &ldh);
+#ifdef PRINT
+	printf(" time = %lf\nZGEMM", time);
+#endif
+	time = omp_get_wtime();
+	zgemm("No", "No", &n, &n, &n, &alpha_one, L, &ldl, U, &ldu, &beta_zero, Hc, &ldh);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+
+	//	print(n, n, Hc, ldlu, "L*U");
+	//	printf("\n");
+	//	print(n, n, Hinit, ldh, "A - LU");
+
+	//norm = zlange("Frob", &n, &n, Hinit, &ldh, NULL);
+	int n1 = 3;
+	norm = rel_error_complex(n, n, Hc, Hinit, ldh, eps);
+	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
+//	AssertLess(norm, eps, str);
+
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+
+	FreeUnsymmNodes(n, HCstr, smallsize);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(L);
+	free_arr(U);
+	free_arr(LUrec);
+
+}
+
+void TestRowInterchange(int n, int m, double eps)
+{
+	dtype *A = alloc_arr<dtype>(n * n); int lda = n;
+	dtype *P = alloc_arr<dtype>(n * n); int ldp = n;
+	int *ipiv = alloc_arr<int>(n);
+	int ione = 1;
+	int mione = -1;
+
+	Hilbert3(n, m, A, lda);
+
+	print(n, m, A, lda, "A");
+	
+	ipiv[0] = 2;
+	ipiv[1] = 4;
+	ipiv[2] = 3;
+	ipiv[3] = 4;
+	ipiv[4] = 5;
+
+	zlaswp(&m, A, &lda, &ione, &n, ipiv, &ione);
+
+	print(n, m, A, lda, "Aperm");
+
+	zlaswp(&m, A, &lda, &ione, &n, ipiv, &ione);
+
+	print(n, m, A, lda, "AbackReverse");
 }
 
 void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double eps, int smallsize)
@@ -1324,15 +1930,17 @@ void Test_NonZeroElementsInFactors(size_m x, size_m y, cmnode **Gstr, dtype* B, 
 	
 }
 
-void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
+void Test_UnsymmLUfact2(int n, double eps, char* method, int smallsize)
 {
 	printf("----Test LU fact-----\n");
 	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
 	dtype *Hc = alloc_arr<dtype>(n * n);
 	dtype *LUrec = alloc_arr<dtype>(n * n);
 	dtype *U = alloc_arr<dtype>(n * n);
 	dtype *L = alloc_arr<dtype>(n * n);
 	int *ipiv = alloc_arr<int>(n);
+	int *ipiv2 = alloc_arr<int>(n);
 	char str[255];
 
 	int ldh = n;
@@ -1342,50 +1950,75 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 
 	int nbl = n / 2;
 
+	dtype alpha_one = 1.0;
 	dtype alpha_mone = -1.0;
 	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
 	int ione = 1;
 	int mione = -1;
 	double norm = 0;
+	int info;
 
-	Hilbert(n, n, H, ldh);
-	Hilbert(n, n, Hc, ldh);
+	Hilbert3(n, n, Hinit, ldh);
+	Hilbert3(n, n, Hc, ldh);
 
 	// for stability
 	for (int i = 0; i < n; i++)
 	{
-		H[i + ldh * i] += 1.0;
-		Hc[i + ldh * i] += 1.0;
+		Hinit[i + ldh * i] -= 5.0;
+		Hc[i + ldh * i] -= 5.0;
 	}
+
+	print(n, n, Hinit, ldh, "A");
 
 	cumnode *HCstr;
 	printf("Compress\n");
 	UnsymmRecCompressStruct(n, Hc, ldh, HCstr, smallsize, eps, method);
+	//UnsymmPrintRanksInWidthList(HCstr);
 	printf("LU\n");
-	UnsymmLUfact(n, HCstr, ipiv, smallsize);
+	UnsymmLUfact(n, HCstr, ipiv, smallsize, eps, method);
 	printf("Restore\n");
 	UnsymmResRestoreStruct(n, HCstr, LUrec, ldlu, smallsize);
 
-	printf("Copy factors\n");
-	zlacpy("L", &n, &n, LUrec, &ldlu, L, &ldl);
-	for (int i = 0; i < n; i++)
-		L[i + ldl * i] = 1.0;
+	print(n, n, LUrec, ldlu, "LU HSS after update A22");
+		
+	//MyLU(n, Hinit, ldh, ipiv2);
+	MyLURec(n, Hinit, ldh, ipiv2, smallsize);
 
-	for (int j = 0; j < 2; j++)
-		zlaswp(&nbl, &L[j * nbl + ldl * j * nbl], &ldl, &ione, &nbl, &ipiv[j * nbl], &mione);
-	
-	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
+	print(n, n, Hinit, ldh, "MY LU after update A22");
 
-	printf("Gemm A:= A - LU\n");
+//	zgetrf(&n, &n, H, &ldh, ipiv2, &info);
+//	for (int i = 0; i < n; i++)
+//		if (ipiv2[i] != i + 1) printf("MKL LU: ROW interchange\n");
+
+//	print(n, n, H, ldh, "L + U MKL");
+//	printf("\n");
+
+//	printf("Gemm A:= A - LU\n");
 	// A = A - Lrec * Urec
-	zgemm("No", "No", &n, &n, &n, &alpha_mone, L, &ldl, U, &ldu, &beta_one, H, &ldh);
+//	zgemm("No", "No", &n, &n, &n, &alpha_mone, L, &ldl, U, &ldu, &beta_one, Hinit, &ldh);
+//	zgemm("No", "No", &n, &n, &n, &alpha_one, L, &ldl, U, &ldu, &beta_zero, Hc, &ldh);
 
-	norm = zlange("Frob", &n, &n, H, &ldh, NULL);
+//	print(n, n, Hc, ldlu, "L*U");
+//	printf("\n");
+
+	//for (int i = 0; i < n; i++)
+		//for (int j = 0; j < n; j++)
+			//Hinit[i + ldh * j] -= LUrec[i + ldlu * j];
+
+	int n1 = 10;
+	int n2 = 5;
+
+	norm = rel_error_complex(n, n, LUrec, Hinit, ldh, eps);
+	print(n, n, LUrec, ldlu, "A - LU");
+
 	sprintf(str, "Struct: n = %d", n);
 	//AssertLess(norm, eps, str);
 
-	if (norm < eps) printf("Norm %10.8e < eps %10.8lf: PASSED\n", norm, eps);
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED\n", norm, eps);
 	else printf("Norm %10.8lf > eps %10.8e : FAILED\n", norm, eps);
+
+	norm = zlange("Frob", &n, &n, &Hinit[0 + ldh * 0], &ldh, NULL);
 
 	FreeUnsymmNodes(n, HCstr, smallsize);
 	free_arr(H);
@@ -1395,6 +2028,94 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	free_arr(LUrec);
 
 }
+
+void Test_MyLURecFact(int n, double eps, char* method, int smallsize)
+{
+//	printf("----Test LU fact-----\n");
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LUrec = alloc_arr<dtype>(n * n);
+	dtype *U = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	int *ipiv = alloc_arr<int>(n);
+	int *ipiv2 = alloc_arr<int>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	int nbl = n / 2;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+	int pivot = 0;
+
+	Hilbert3(n, n, Hinit, ldh);
+	Hilbert3(n, n, H, ldh);
+
+	// for stability
+	for (int i = 0; i < n; i++)
+	{
+		Hinit[i + ldh * i] -= 3.0;
+		H[i + ldh * i] -= 3.0;
+	}
+
+//	print(n, n, Hinit, ldh, "A");
+
+	MyLURec(n, Hinit, ldh, ipiv, smallsize);
+
+	for (int i = 0; i < n; i++)
+	{
+		if (ipiv[i] != i + 1) pivot++;
+	}
+
+#ifdef PRINT
+	print(n, n, Hinit, ldh, "MY LU");
+#endif
+
+	zlacpy("L", &n, &n, Hinit, &ldh, L, &ldl);
+
+	for (int i = 0; i < n; i++)
+		L[i + ldl * i] = 1.0;
+
+	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
+
+	zlacpy("U", &n, &n, Hinit, &ldh, U, &ldu);
+
+	zgemm("No", "No", &n, &n, &n, &alpha_one, L, &ldl, U, &ldu, &beta_zero, Hc, &ldh);
+
+	int n1 = 10;
+	int n2 = 5;
+
+	norm = rel_error_complex(n, n, Hc, H, ldh, eps);
+	//print(n, n, LUrec, ldlu, "A - LU");
+
+	sprintf(str, "Struct: n = %d", n);
+	AssertLess(norm, eps, str);
+
+//	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for n = %d sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+//	else printf("Norm %10.8lf > eps %10.8e : FAILED for n = %d sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+
+	norm = zlange("Frob", &n, &n, &Hinit[0 + ldh * 0], &ldh, NULL);
+
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(L);
+	free_arr(U);
+	free_arr(LUrec);
+
+}
+
+
 
 
 

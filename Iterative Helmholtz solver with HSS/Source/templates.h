@@ -86,23 +86,46 @@ void SymCompUpdate2Struct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int
 void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, double eps, char *method);
 void SymResRestoreStruct(int n, cmnode* H1str, dtype *H2, int ldh, int smallsize);
 double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, double eps);
+void Hilbert2(int m, int n, dtype *H, int ldh);
+void Hilbert3(int m, int n, dtype *H, int ldh);
+void Hilbert4(int m, int n, dtype *H, int ldh);
+void Hilbert6(int m, int n, dtype *H, int ldh);
+void alloc_dense_simple_node(int n, cmnode* &Cstr);
 
 // Unsymm
-void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize);
+void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method);
 void UnsymmRecMultLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void UnsymmRecMultRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void UnsymmUpdate2Subroutine(int n2, int n1, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cmnode* &Bstr, int smallsize, double eps, char* method);
 void UnsymmCompUpdate2Struct(int n, int k, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cumnode* &Bstr, int smallsize, double eps, char* method);
 void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize, double eps, char *method);
-void alloc_dense_unsymm_node(int n, cumnode* &Cstr);
-void CopyUnsymmStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize);
-void UnsymmRecCompressStruct(int n, dtype *A, const int lda, cumnode* &ACstr, const int small_size, double eps, char *method);
+void UnsymmRecCompressStruct(int n, dtype *A, const int lda, cumnode* &ACstr, const int smallsize, double eps, char *method);
 void UnsymmResRestoreStruct(int n, cumnode* H1str, dtype *H2, int ldh, int smallsize);
 void UnsymmAddStruct(int n, dtype alpha, cumnode* Astr, dtype beta, cumnode* Bstr, cumnode* &Cstr, int smallsize, double eps, char *method);
 void UnsymmAddSubroutine(int n2, int n1, dtype alpha, cmnode* Astr, dtype beta, cmnode* Bstr, cmnode* &Cstr, int smallsize, double eps, char *method);
-void FreeUnsymmNodes(int n, cumnode* &Astr, int smallsize);
 void UnsymmUpdate3Subroutine(int n2, int n1, int k1, int k2, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype* V2, int ldv2, cmnode* &Bstr, int smallsize, double eps, char* method);
 void UnsymmCompUpdate3Struct(int n, int k1, int k2, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cumnode* &Bstr, int smallsize, double eps, char* method);
+void UnsymmCopyStruct(int n, cumnode* Astr, cumnode* Bstr, int smallsize);
+void CopyLfactor(int n, cumnode* Astr, cumnode* &Lstr, int smallsize);
+void CopyRfactor(int n, cumnode* Astr, cumnode* &Rstr, int smallsize);
+void CopyUnsymmStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize);
+void ApplyToA21(int n, cumnode *A11, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method);
+void ApplyToA12(int n, cumnode *A22, cmnode* Astr, cumnode* L, int* ipiv, int smallsize, double eps, char *method);
+void MyLURec(int n, dtype *Hinit, int ldh, int *ipiv, int smallsize);
+void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method);
+void UnsymmCompRecInvRightTriangStruct(int n, cumnode* Ustr, cumnode* &Bstr, int smallsize, double eps, char *method);
+void UnsymmRecMultUpperRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void UnsymmRecMultUpperLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void UnsymmRecMultLowerLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void UnsymmRecMultLowerRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+
+void alloc_dense_unsymm_node(int n, cumnode* &Cstr);
+void FreeUnsymmNodes(int n, cumnode* &Astr, int smallsize);
+void UnsymmClearStruct(int n, cumnode* Astr, int smallsize);
+int my_log(int a, int b);
+int GetNumberOfLeaves(cumnode *root);
+void GetDistances(cumnode *root, int *dist, int &count);
+
 
 // Solver
 void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, dtype *f, dcsr* Dcsr, double thresh, int smallsize, int ItRef, char *bench,
@@ -129,6 +152,8 @@ map<vector<int>, dtype> BlockRowMat_to_CSR(int blk, int n1, int n2, int n3, dtyp
 void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, dtype *BR, int ldbr, dtype* AR, int ldar);
 void shift_values(int rows, int *ia, int shift_non_zeros, int non_zeros, int *ja, int shift_columns);
 void SetPml(int blk, size_m x, size_m y, int n, dtype* alpX, dtype* alpY);
+void MyLU(int n, dtype *Hinit, int ldh, int *ipiv);
+void Hilbert5(int m, int n, dtype *H, int ldh);
 
 void count_dense_elements(int m, int n, double *A, int lda, int& non_zeros);
 void compare_vec(int size, dtype* v1, dtype* v2);
@@ -141,6 +166,15 @@ void pop(struct my_queue* &q);
 cmnode* front(struct my_queue* q);
 void PrintRanksInWidthList(cmnode *root);
 void print_queue(struct my_queue* q);
+
+void init(struct my_queue2* &q);
+bool my_empty(struct my_queue2* q);
+void push(struct my_queue2* &q, cumnode* node);
+void pop(struct my_queue2* &q);
+cumnode* front(struct my_queue2* q);
+void UnsymmPrintRanksInWidthList(cumnode *root);
+void UnsymmPrintRanksInWidth(cumnode *root);
+
 
 
 

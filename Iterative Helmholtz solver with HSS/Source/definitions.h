@@ -52,9 +52,11 @@ struct BinaryMatrixTreeNode {
 
 typedef struct BinaryMatrixTreeNode mnode;
 
-struct ComplexBinaryMatrixTreeNode {
-
+struct ComplexBinaryMatrixTreeNode 
+{
+	int n2 = 0;
 	int p = 0;
+	int n1 = 0;
 	dtype *U = NULL;
 	dtype *VT = NULL;
 	dtype *A = NULL;
@@ -64,12 +66,12 @@ struct ComplexBinaryMatrixTreeNode {
 
 typedef struct ComplexBinaryMatrixTreeNode cmnode;
 
-struct ComplexBinaryUnsymmetricMatrixTreeNode {
-
+struct ComplexBinaryUnsymmetricMatrixTreeNode 
+{
 	cmnode *A21;
 	cmnode *A12;
-	struct ComplexBinaryUnsymmetricMatrixTreeNode *left;
-	struct ComplexBinaryUnsymmetricMatrixTreeNode *right;
+	struct ComplexBinaryUnsymmetricMatrixTreeNode *left = NULL;
+	struct ComplexBinaryUnsymmetricMatrixTreeNode *right = NULL;
 };
 
 typedef struct ComplexBinaryUnsymmetricMatrixTreeNode cumnode;
@@ -88,11 +90,24 @@ struct list {
 	struct list* next;
 };
 
+typedef struct list qlist;
+
+struct list2 {
+	cumnode* node;
+	struct list2* next;
+};
+
+typedef struct list2 qlist2;
+
 struct my_queue {
 	struct list *first, *last;
 };
 
-typedef struct list qlist;
+struct my_queue2 {
+	struct list2 *first, *last;
+};
+
+
 
 #define STRUCT_CSR
 

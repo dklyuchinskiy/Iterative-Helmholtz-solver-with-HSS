@@ -193,7 +193,31 @@ int main()
 int main()
 {
 	TestAll();
-	Test_UnsymmLUfact(100, 1e-6, "SVD", 50);
+
+//	Test_PermutLowRankApprox(5, 7, 1e-3, "SVD");
+//	Test_PermutLowRankApprox(20, 20, 1e-3, "SVD");
+	printf("-----------\n");
+//	Test_UnsymmLUfact(5, 1e-4, "SVD", 3);
+	printf("-----------\n");
+//	Test_UnsymmLUfact(6, 1e-4, "SVD", 3);
+	printf("-----------\n");
+//	Test_UnsymmLUfact(7, 1e-4, "SVD", 3);
+//	Test_UnsymmLUfact(12, 1e-8, "SVD", 5);
+//	Test_UnsymmLUfact(12, 1e-8, "SVD", 5);
+#if 0
+	Test_UnsymmLUfact(5, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(6, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(10, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(12, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(20, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(24, 1e-8, "SVD", 5);
+	Test_UnsymmLUfact(40, 1e-8, "SVD", 5);
+#endif
+
+//	Test_UnsymmLUfact2(7, 1e-4, "SVD", 3);
+//	Test_MyLURecFact(7, 1e-4, "SVD", 3);
+//	Test_MyLURecFact(20, 1e-8, "SVD", 5);
+//	TestRowInterchange(5, 7, 1e-8);
 	system("pause");
 
 #if 1

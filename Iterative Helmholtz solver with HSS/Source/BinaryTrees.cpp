@@ -83,6 +83,35 @@ int CountElementsInMatrixTree(int n, cmnode* root)
 	}
 }
 
+int GetNumberOfLeaves(cumnode *root)
+{
+	if (root->left == NULL && root->right == NULL)
+	{
+		return 1;
+	}
+	else
+	{
+		int ld = 0, rd = 0;
+		if (root->left != NULL) ld = GetNumberOfLeaves(root->left);
+		if (root->right != NULL) rd = GetNumberOfLeaves(root->right);
+
+		return ld + rd;
+	}
+}
+
+void GetDistances(cumnode *root, int *dist, int &count)
+{
+	if (root->left == NULL && root->right == NULL)
+	{		
+		dist[count++] = root->A21->n1;
+	}
+	else
+	{
+		if (root->left != NULL) GetDistances(root->left, dist, count);
+		if (root->right!= NULL) GetDistances(root->right, dist, count);
+	}
+}
+
 void PrintRanks(mnode* root)
 {
 	if (root == NULL)
@@ -120,6 +149,30 @@ void PrintRanksInWidth(cmnode *root)
 	}
 }
 
+void UnsymmPrintRanksInWidth(cumnode *root)
+{
+	if (root == NULL)
+	{
+		return;
+	}
+	queue<cumnode*> q; // Создаем очередь
+	q.push(root); // Вставляем корень в очередь
+
+	while (!q.empty()) // пока очередь не пуста
+	{
+		cumnode* temp = q.front(); // Берем первый элемент в очереди
+		q.pop();  // Удаляем первый элемент в очереди
+		printf("A21->p: %3d ", temp->A21->p); // Печатаем значение первого элемента в очереди
+		printf("A12->p: %3d ", temp->A12->p);
+
+		if (temp->left != NULL)
+			q.push(temp->left);  // Вставляем  в очередь левого потомка
+
+		if (temp->right != NULL)
+			q.push(temp->right);  // Вставляем  в очередь правого потомка
+	}
+}
+
 
 void PrintRanksInWidthList(cmnode *root)
 {
@@ -144,6 +197,37 @@ void PrintRanksInWidthList(cmnode *root)
 			push(q, temp->left);  // Вставляем  в очередь левого потомка
 
 		if (temp->right != NULL) 
+			push(q, temp->right);  // Вставляем  в очередь правого потомка
+#ifdef DEBUG
+		print_queue(q);
+#endif
+	}
+}
+
+void UnsymmPrintRanksInWidthList(cumnode *root)
+{
+	if (root == NULL)
+	{
+		return;
+	}
+	struct my_queue2* q; // Создаем очередь
+	init(q);
+	push(q, root); // Вставляем корень в очередь
+
+#ifdef DEBUG
+	print_queue(q);
+#endif
+	while (!my_empty(q)) // пока очередь не пуста
+	{
+		cumnode* temp = front(q); // Берем первый элемент в очереди
+		pop(q);  // Удаляем первый элемент в очереди
+		printf("A21->p: %3d ", temp->A21->p); // Печатаем значение первого элемента в очереди
+		printf("A12->p: %3d ", temp->A12->p); 
+
+		if (temp->left != NULL)
+			push(q, temp->left);  // Вставляем  в очередь левого потомка
+
+		if (temp->right != NULL)
 			push(q, temp->right);  // Вставляем  в очередь правого потомка
 #ifdef DEBUG
 		print_queue(q);
@@ -212,6 +296,9 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 		{
 			if (S[j] / S[0] < eps)
 			{
+			//	printf("S[%d] / S[0] = %20.18lf\n", j, S[j] / S[0]);
+			//	printf("S[%d] = %20.18lf\n", j, S[j]);
+			//	printf("S[0] = %20.18lf\n", S[0]);
 				break;
 			}
 			Astr->p = j + 1;
@@ -230,6 +317,9 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 		// Alloc new node
 		Astr->U = (dtype*)malloc(n2 * Astr->p * sizeof(dtype));
 		Astr->VT = (dtype*)malloc(Astr->p * n1 * sizeof(dtype));
+
+		Astr->n2 = n2;
+		Astr->n1 = n1;
 
 #ifndef FULL_SVD
 		zlacpy("All", &n2, &Astr->p, A, &lda, Astr->U, &n2);
@@ -304,9 +394,8 @@ void UnsymmRecCompressStruct(int n /* order of A */, dtype *A /* init matrix */,
 	}
 	else
 	{
-		int n1, n2;
-		n2 = (int)ceil(n / 2.0); // округление в большую сторону
-		n1 = n - n2; // n2 > n1
+		int n2 = (int)ceil(n / 2.0); // округление в большую сторону
+		int n1 = n - n2; // n2 > n1	
 
 		// LowRank A21 and A12
 		ACstr->A21 = (cmnode*)malloc(sizeof(cmnode));
@@ -393,6 +482,7 @@ void UnsymmDenseMultStruct(int p1, int n, int p2, cumnode* Astr, dtype *U, int l
 	zgemm("No", "No", &p1, &p2, &n, &alpha, U, &ldu, Y, &ldy, &beta, G, &ldg);
 }
 
+#if 0
 void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize)
 {
 	if (n <= smallsize)
@@ -447,8 +537,306 @@ void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize)
 
 		printf("LU A[2][2]\n");
 		UnsymmLUfact(n2, Astr->right, &ipiv[n1], smallsize);
+
+		free_arr(G1);
+		free_arr(G2);
+		free_arr(RES);
 	}
 }
+#else
+
+void CopyLfactor(int n, cumnode* Astr, cumnode* &Lstr, int smallsize)
+{
+	Lstr = (cumnode*)malloc(sizeof(cumnode));
+	if (n <= smallsize)
+	{
+		alloc_dense_unsymm_node(n, Lstr);
+		zlacpy("Low", &n, &n, Astr->A21->A, &n, Lstr->A21->A, &n);
+
+		for (int i = 0; i < n; i++)
+			Lstr->A21->A[i + n * i] = 1.0;
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+
+		Lstr->A21 = (cmnode*)malloc(sizeof(cmnode));
+		Lstr->A12 = (cmnode*)malloc(sizeof(cmnode));
+
+		Lstr->A21->p = Astr->A21->p;
+		Lstr->A12->p = Astr->A12->p;
+
+		Lstr->A21->U = alloc_arr<dtype>(n2 * Astr->A21->p);
+		Lstr->A12->U = alloc_arr<dtype>(n1 * Astr->A12->p);
+		Lstr->A21->VT = alloc_arr<dtype>(Lstr->A21->p * n1);
+		Lstr->A12->VT = alloc_arr<dtype>(Lstr->A12->p * n2);
+
+		zlacpy("All", &n2, &Lstr->A21->p, Astr->A21->U, &n2, Lstr->A21->U, &n2);
+		zlacpy("All", &Lstr->A21->p, &n1, Astr->A21->VT, &Astr->A21->p, Lstr->A21->VT, &Lstr->A21->p);
+
+		Clear(n1, Lstr->A12->p, Lstr->A12->U, n1);
+		Clear(Lstr->A12->p, n2, Lstr->A12->VT, Lstr->A12->p);
+
+		CopyLfactor(n1, Astr->left, Lstr->left, smallsize);
+		CopyLfactor(n2, Astr->right, Lstr->right, smallsize);
+	}
+}
+
+void CopyRfactor(int n, cumnode* Astr, cumnode* &Rstr, int smallsize)
+{
+	Rstr = (cumnode*)malloc(sizeof(cumnode));
+	if (n <= smallsize)
+	{
+		alloc_dense_unsymm_node(n, Rstr);
+		zlacpy("Up", &n, &n, Astr->A21->A, &n, Rstr->A21->A, &n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+
+		Rstr->A21 = (cmnode*)malloc(sizeof(cmnode));
+		Rstr->A12 = (cmnode*)malloc(sizeof(cmnode));
+
+		Rstr->A21->p = Astr->A21->p;
+		Rstr->A12->p = Astr->A12->p;
+
+		Rstr->A21->U = alloc_arr2<dtype>(n2 * Astr->A21->p);
+		Rstr->A12->U = alloc_arr2<dtype>(n1 * Astr->A12->p);
+		Rstr->A21->VT = alloc_arr2<dtype>(Rstr->A21->p * n1);
+		Rstr->A12->VT = alloc_arr2<dtype>(Rstr->A12->p * n2);
+
+		zlacpy("All", &n1, &Rstr->A12->p, Astr->A12->U, &n1, Rstr->A12->U, &n1);
+		zlacpy("All", &Rstr->A12->p, &n2, Astr->A12->VT, &Astr->A12->p, Rstr->A12->VT, &Rstr->A12->p);
+
+		Clear(n2, Astr->A21->p, Rstr->A21->U, n2);
+		Clear(Astr->A21->p, n1, Rstr->A21->VT, Astr->A21->p);
+
+		CopyRfactor(n1, Astr->left, Rstr->left, smallsize);
+		CopyRfactor(n2, Astr->right, Rstr->right, smallsize);
+	}
+}
+
+void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method)
+{
+	int ione = 1;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		//printf("Apply to A21\n");
+		ztrsm("Right", "Up", "No", "NonUnit", &Astr->p, &n, &alpha, R->A21->A, &n, Astr->VT, &Astr->p);
+	}
+	else
+	{
+		cumnode* Rinv;
+		dtype *Y = alloc_arr<dtype>(Astr->p * n); int ldy = Astr->p;
+
+		// Rinv = R^{-1}
+		//printf("InvR\n");
+#if 0
+		UnsymmCompRecInvStruct(n, R, Rinv, smallsize, eps, method);
+#else
+		UnsymmCompRecInvRightTriangStruct(n, R, Rinv, smallsize, eps, method);
+#endif
+
+		// Apply Rinv to the right of A21 VT (save result in Y)
+		//printf("RecMultR\n");
+#if 0
+		UnsymmRecMultRStruct(n, Astr->p, Rinv, Astr->VT, Astr->p, Y, ldy, smallsize);
+#else
+		UnsymmRecMultUpperRStruct(n, Astr->p, Rinv, Astr->VT, Astr->p, Y, ldy, smallsize);
+#endif
+
+		// Replace A21 VT with Y
+		//printf("Replace\n");
+		zlacpy("All", &Astr->p, &n, Y, &ldy, Astr->VT, &Astr->p);
+
+		free_arr(Y);
+	}
+}
+
+void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int smallsize, double eps, char *method)
+{
+	int ione = 1;
+	int mione = -1;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		//printf("swap rows in U");
+		//zlaswp(&A12->p, A12->U, &n, &ione, &n, ipiv, &ione);
+		//printf("Apply to A12\n");
+		ztrsm("Left", "Low", "No", "Unit", &n, &A12->p, &alpha, L->A21->A, &n, A12->U, &n);
+	}
+	else
+	{
+		cumnode* Linv;
+		dtype *Y = alloc_arr<dtype>(n * A12->p); int ldy = n;
+
+#if 0
+		int nleaves = GetNumberOfLeaves(A11);
+		int *dist = alloc_arr<int>(nleaves);
+		int count = 0;
+		int nn = 0;
+
+		GetDistances(A11, dist, count);
+#endif
+
+#ifdef PRINT
+		if (count != nleaves) printf("ERROR NLEAVES!\n");
+		printf("Nleaves = %d inside ApplyToA12 n = %d\n", nleaves, n);
+#endif
+		// Linv = L^{-1}
+
+#if 0
+		UnsymmCompRecInvStruct(n, L, Linv, smallsize, eps, method);
+#else
+		UnsymmCompRecInvLeftTriangStruct(n, L, Linv, smallsize, eps, method);
+#endif
+
+#ifdef PRINT
+		printf("\nipiv inside\n");
+		for (int i = 0; i < n; i++)
+			printf("ipiv[%d] = %d\n", i, ipiv[i]);
+#endif
+
+#if 0
+		for (int i = 0; i < nleaves; i++)
+		{
+		//	printf("Dist[%d] = %d\n", i, dist[i]);
+			zlaswp(&A12->p, &A12->U[nn], &n, &ione, &dist[i], &ipiv[nn], &ione);
+			nn += dist[i];
+		}
+
+		if (nn != n) printf("ERROR DISTANCE!\n");
+		free_arr(dist);
+#endif
+
+#if 0
+		// Apply Rinv to the right of A21 VT (save result in Y)
+		UnsymmRecMultLStruct(n, A12->p, Linv, A12->U, n, Y, ldy, smallsize);
+#else
+		UnsymmRecMultLowerLStruct(n, A12->p, Linv, A12->U, n, Y, ldy, smallsize);
+#endif
+
+		// Replace A21 VT with Y
+		zlacpy("All", &n, &A12->p, Y, &ldy, A12->U, &n);
+
+		free_arr(Y);
+	}
+}
+
+
+void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method)
+{
+	int ione = 1;
+	int mione = -1;
+	dtype alpha = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		int info = 0;
+		zgetrf(&n, &n, Astr->A21->A, &n, ipiv, &info);
+#ifdef PRINT
+		for (int i = 0; i < n; i++)
+			if (ipiv[i] != i + 1) printf("HSS LU for n = %d: ROW interchange: %d with %d\n", n, i + 1, ipiv[i]);
+#endif
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+#if 0
+		cumnode* Da;
+		printf("Copy\n");
+		CopyUnsymmStruct(n1, Astr->left, Da, smallsize);
+#endif
+		UnsymmLUfact(n1, Astr->left, &ipiv[0], smallsize, eps, method);
+
+		//Apply to A21: = U1 * V1T * (UP ^ {-1}) or to solve triangular system X * UP = VT
+		ApplyToA21(n1, Astr->left, Astr->A21, Astr->left, smallsize, eps, method);
+
+		zlaswp(&Astr->A12->p, Astr->A12->U, &n1, &ione, &n1, ipiv, &ione);
+
+		//Apply to A12: =  (L ^ {-1}) (P ^ {-1}) * U2 * V2T or to solve triangular system  L * X  = (P ^ {-1}) * U
+		ApplyToA12(n1, Astr->left, Astr->A12, Astr->left, ipiv, smallsize, eps, method);
+
+		//Double update D:= D - U1 * V1T * (U^{-1}) * (L^{-1}) * U2 * V2T
+#if 0
+		dtype *G1 = alloc_arr<dtype>(n2 * n1); int ldg1 = n2;
+		dtype *G2 = alloc_arr<dtype>(n1 * n2); int ldg2 = n1;
+		dtype *RES = alloc_arr<dtype>(n2 * n2); int ldr = n2;
+
+		printf("Update 2.1\n");
+		zgemm("no", "no", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, G1, &ldg1);
+		printf("Update 2.2\n");
+		zgemm("no", "no", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, G2, &ldg2);
+		printf("Update 2.3\n");
+		zgemm("no", "no", &n2, &n2, &n1, &alpha, G1, &ldg1, G2, &ldg2, &beta, RES, &ldr);
+
+		// D: = D - RES
+		printf("Update D:= D - RES\n");
+		for (int j = 0; j < n2; j++)
+			for (int i = 0; i < n2; i++)
+				Astr->right->A21->A[i + n2 * j] -= RES[i + n2 * j];
+
+		free_arr(G1);
+		free_arr(G2);
+		free_arr(RES);
+#else
+		
+
+		// Update compressed block A[2][2]
+		dtype *Y = alloc_arr<dtype>(Astr->A21->p * Astr->A12->p); int ldy = Astr->A21->p;
+		zgemm("no", "no", &Astr->A21->p, &Astr->A12->p, &n1, &alpha, Astr->A21->VT, &Astr->A21->p, Astr->A12->U, &n1, &beta, Y, &ldy);
+	
+#if 1
+		cumnode* Bstr;
+		// (n2 x n2) = (n2 x n2) - (n2 x p2) * (p2 x p1) * (p1 x n2)
+		UnsymmCompUpdate3Struct(n2, Astr->A21->p, Astr->A12->p, Astr->right, alpha_mone, Y, ldy, Astr->A21->U, n2, Astr->A12->VT, Astr->A12->p, Bstr, smallsize, eps, method);
+
+		FreeUnsymmNodes(n2, Astr->right, smallsize);
+		CopyUnsymmStruct(n2, Bstr, Astr->right, smallsize);
+
+		FreeUnsymmNodes(n2, Bstr, smallsize);
+#endif
+		free_arr(Y);
+#endif
+#if 1
+		UnsymmLUfact(n2, Astr->right, &ipiv[n1], smallsize, eps, method);
+#if 0
+		int nleaves = GetNumberOfLeaves(Astr->right);
+		int *dist = alloc_arr<int>(nleaves);
+		int count = 0;
+		int nn = 0;
+
+		GetDistances(Astr->right, dist, count);
+
+	//	printf("nleaves: %d\n", nleaves);
+
+		for (int i = 0; i < nleaves; i++)
+		{
+			printf("Dist[%d] = %d\n", i, dist[i]);
+			zlaswp(&Astr->A21->p, &Astr->A21->U[nn], &n2, &ione, &dist[i], &ipiv[n1 + nn], &ione);
+			nn += dist[i];
+		}
+#endif
+
+		zlaswp(&Astr->A21->p, Astr->A21->U, &n2, &ione, &n2, &ipiv[n1], &ione);
+#endif
+		// Adjust pivot indexes to level up
+		for (int i = n1; i < n; i++)
+			ipiv[i] = ipiv[i] + n1;
+
+	}
+}
+#endif
 
 /* Y = A * X, where A - compressed n * n, X - dense n * m, Y - dense n * m */
 void RecMultLStruct(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
@@ -615,6 +1003,169 @@ void UnsymmRecMultRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype 
 		free_arr(inter1);
 		free_arr(inter2);
 
+	}
+}
+
+void UnsymmRecMultUpperLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &n, &m, &n, &alpha, Astr->A21->A, &n, X, &ldx, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		dtype *Y12 = alloc_arr2<dtype>(n1 * m); int ldy12 = n1;
+		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
+		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
+		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+
+		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
+		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter, &n1);
+
+		// Y12 = inter2 (n1 x n2) * X(n1...m, :) (n2 x n)
+		zgemm("No", "No", &n1, &m, &n2, &alpha, inter, &n1, &X[n1 + 0 * ldx], &ldx, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+
+		UnsymmRecMultUpperLStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
+		UnsymmRecMultUpperLStruct(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, smallsize);
+
+		// first part of Y = Y11 + Y12
+		mkl_zomatadd('C', 'N', 'N', n1, m, 1.0, Y11, ldy11, 1.0, Y12, ldy12, &Y[0 + ldy * 0], ldy);
+
+		// second part of Y = Y22
+		zlacpy("All", &n2, &m, Y22, &ldy22, &Y[n1 + ldy * 0], &ldy);
+
+		free_arr(Y11);
+		free_arr(Y12);
+		free_arr(Y22);
+		free_arr(inter);
+	}
+}
+
+void UnsymmRecMultUpperRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &m, &n, &n, &alpha, X, &ldx, Astr->A21->A, &n, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		dtype *Y12 = alloc_arr2<dtype>(m * n2); int ldy12 = m;
+		dtype *Y11 = alloc_arr2<dtype>(m * n1); int ldy11 = m;
+		dtype *Y22 = alloc_arr2<dtype>(m * n2); int ldy22 = m;
+		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+
+		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
+		zgemm("No", "No", &n1, &n2, &Astr->A12->p, &alpha, Astr->A12->U, &n1, Astr->A12->VT, &Astr->A12->p, &beta, inter, &n1);
+
+		// Y12 = X(..., 0:n1) * inter2 (n1 x n2)  = (m x n2)
+		zgemm("No", "No", &m, &n2, &n1, &alpha, &X[0 + ldx * 0], &ldx, inter, &n1, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+
+		UnsymmRecMultUpperRStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
+		UnsymmRecMultUpperRStruct(n2, m, Astr->right, &X[0 + ldx * n1], ldx, Y22, ldy22, smallsize);
+
+		// first part of Y = Y11
+		zlacpy("All", &m, &n1, Y11, &ldy11, &Y[0 + ldy * 0], &ldy);
+
+		// second part of Y = Y12 + Y22
+		mkl_zomatadd('C', 'N', 'N', m, n2, 1.0, Y12, ldy12, 1.0, Y22, ldy22, &Y[0 + ldy * n1], ldy);
+
+		free_arr(Y11);
+		free_arr(Y12);
+		free_arr(Y22);
+		free_arr(inter);
+
+	}
+}
+
+void UnsymmRecMultLowerLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &n, &m, &n, &alpha, Astr->A21->A, &n, X, &ldx, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		dtype *Y21 = alloc_arr2<dtype>(n2 * m); int ldy21 = n2;
+		dtype *Y11 = alloc_arr2<dtype>(n1 * m); int ldy11 = n1;
+		dtype *Y22 = alloc_arr2<dtype>(n2 * m); int ldy22 = n2;
+		dtype *inter = alloc_arr2<dtype>(n2 * n1); // column major - lda = column
+
+		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
+		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter, &n2);
+
+		// Y21 = inter1 (n2 x n1) * X(1...n1, :) (n1 x n)
+		zgemm("No", "No", &n2, &m, &n1, &alpha, inter, &n2, &X[0 + 0 * ldx], &ldx, &beta, Y21, &ldy21);
+
+		UnsymmRecMultLowerLStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
+		UnsymmRecMultLowerLStruct(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, smallsize);
+
+		// first part of Y = Y11
+		zlacpy("All", &n1, &m, Y11, &ldy11, &Y[0 + ldy * 0], &ldy);
+
+		// second part of Y = Y21 + Y22
+		mkl_zomatadd('C', 'N', 'N', n2, m, 1.0, Y21, ldy21, 1.0, Y22, ldy22, &Y[n1 + ldy * 0], ldy);
+
+
+		free_arr(Y11);
+		free_arr(Y21);
+		free_arr(Y22);
+		free_arr(inter);
+	}
+}
+
+void UnsymmRecMultLowerRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &m, &n, &n, &alpha, X, &ldx, Astr->A21->A, &n, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		dtype *Y21 = alloc_arr2<dtype>(m * n1); int ldy21 = m;
+		dtype *Y11 = alloc_arr2<dtype>(m * n1); int ldy11 = m;
+		dtype *Y22 = alloc_arr2<dtype>(m * n2); int ldy22 = m;
+		dtype *inter = alloc_arr2<dtype>(n1 * n2);
+
+		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
+		zgemm("No", "No", &n2, &n1, &Astr->A21->p, &alpha, Astr->A21->U, &n2, Astr->A21->VT, &Astr->A21->p, &beta, inter, &n2);
+
+		// Y21 = X(..., n1:n) * inter1 (n2 x n1) = (m x n1)
+		zgemm("No", "No", &m, &n1, &n2, &alpha, &X[0 + ldx * n1], &ldx, inter, &n2, &beta, Y21, &ldy21);
+
+		UnsymmRecMultLowerRStruct(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, smallsize);
+		UnsymmRecMultLowerRStruct(n2, m, Astr->right, &X[0 + ldx * n1], ldx, Y22, ldy22, smallsize);
+
+
+		// first part of Y = Y11 + Y21
+		mkl_zomatadd('C', 'N', 'N', m, n1, 1.0, Y11, ldy11, 1.0, Y21, ldy21, &Y[0 + ldy * 0], ldy);
+
+		// second part of Y = Y22
+		zlacpy("All", &m, &n2, Y22, &ldy22, &Y[0 + ldy * n1], &ldy);
+
+		free_arr(Y11);
+		free_arr(Y21);
+		free_arr(Y22);
+		free_arr(inter);
 	}
 }
 
@@ -1346,6 +1897,7 @@ void UnsymmCompUpdate3Struct(int n, int k, cumnode* Astr, dtype alpha, dtype *Y,
 	}
 }
 #else
+/* B: = A - V1 * Xunsymm * V2 = (n x k1) * (k1 x k2) * (k2 x n) */
 void UnsymmCompUpdate3Struct(int n, int k1, int k2, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cumnode* &Bstr, int smallsize, double eps, char* method)
 {
 	dtype alpha_one = 1.0;
@@ -1574,7 +2126,7 @@ void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize,
 		
 		//здесь будут разные матрицы: A:= A - V1 * Xunsymm * V2		
 		UnsymmCompUpdate3Struct(n1, p1, p2, Astr->left, alpha_mone, Y, p1, Astr->A12->U, n1, Astr->A21->VT, p2, X11str, smallsize, eps, method);
-
+	
 		// Inversion of X11 to B11
 		UnsymmCompRecInvStruct(n1, X11str, Bstr->left, smallsize, eps, method);
 
@@ -1592,7 +2144,7 @@ void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize,
 
 		// B21 VT = -B21 VT
 		mkl_zimatcopy('C', 'N', p1, n2, -1.0, Bstr->A12->VT, p1, p1);
-
+	
 		// Update X22 + (-X22*U) * VT * X11 * U (-VT * X22) = X22 + B21 U * Y * B21 VT = (n2 x n2) + (n2 x p2) * (p2 x p1) * (p1 x n2)
 		UnsymmCompUpdate3Struct(n2, p2, p1, X22str, alpha_one, Y, p2, Bstr->A21->U, n2, Bstr->A12->VT, p1, Bstr->right, smallsize, eps, method);
 
@@ -1604,6 +2156,104 @@ void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize,
 	}
 }
 #endif
+
+void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method)
+{
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	int info = 0;
+	dtype wquery = 0;
+	int lwork = -1;
+
+	Bstr = (cumnode*)malloc(sizeof(cumnode));
+
+	if (n <= smallsize)
+	{
+		// dlacpy
+		alloc_dense_unsymm_node(n, Bstr);
+		Eye(n, Bstr->A21->A, n);
+
+		ztrsm("Left", "Low", "No", "Unit", &n, &n, &alpha_one, Lstr->A21->A, &n, Bstr->A21->A, &n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		Bstr->A21 = (cmnode*)malloc(sizeof(cmnode));
+
+		int p2 = Bstr->A21->p = Lstr->A21->p;
+
+		Bstr->A21->U = alloc_arr2<dtype>(n2 * p2);
+		Bstr->A21->VT = alloc_arr2<dtype>(p2 * n1);
+
+		// Inversion of L11 to B11
+		UnsymmCompRecInvLeftTriangStruct(n1, Lstr->left, Bstr->left, smallsize, eps, method);
+
+		// Inversion of L22 to B22
+		UnsymmCompRecInvLeftTriangStruct(n2, Lstr->right, Bstr->right, smallsize, eps, method);
+
+		// Fill B{2,1} U as L22 * A{2,1} U
+		UnsymmRecMultLowerLStruct(n2, p2, Bstr->right, Lstr->A21->U, n2, Bstr->A21->U, n2, smallsize);
+
+		// Fill B{2,1} VT as A{2,1} VT * L11
+		UnsymmRecMultLowerRStruct(n1, p2, Bstr->left, Lstr->A21->VT, p2, Bstr->A21->VT, p2, smallsize);
+
+		// B21 U = -B21 U
+		mkl_zimatcopy('C', 'N', n2, p2, -1.0, Bstr->A21->U, n2, n2);
+	}
+}
+
+void UnsymmCompRecInvRightTriangStruct(int n, cumnode* Rstr, cumnode* &Bstr, int smallsize, double eps, char *method)
+{
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	int info = 0;
+	dtype wquery = 0;
+	int lwork = -1;
+
+	Bstr = (cumnode*)malloc(sizeof(cumnode));
+
+	if (n <= smallsize)
+	{
+		// dlacpy
+		alloc_dense_unsymm_node(n, Bstr);
+		Eye(n, Bstr->A21->A, n);
+
+		ztrsm("Right", "Up", "No", "NonUnit", &n, &n, &alpha_one, Rstr->A21->A, &n, Bstr->A21->A, &n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		Bstr->A12 = (cmnode*)malloc(sizeof(cmnode));
+
+		int p1 = Bstr->A12->p = Rstr->A12->p;
+
+		Bstr->A12->U = alloc_arr2<dtype>(n1 * p1);
+		Bstr->A12->VT = alloc_arr2<dtype>(p1 * n2);
+
+		// Inversion of R11 to B11
+		UnsymmCompRecInvRightTriangStruct(n1, Rstr->left, Bstr->left, smallsize, eps, method);
+
+		// Inversion of R22 to B22
+		UnsymmCompRecInvRightTriangStruct(n2, Rstr->right, Bstr->right, smallsize, eps, method);
+
+		// Fill B{1,2} U as U11 * A{1,2} U
+		UnsymmRecMultUpperLStruct(n1, p1, Bstr->left, Rstr->A12->U, n1, Bstr->A12->U, n1, smallsize);
+
+		// Fill B{1,2} VT as A{1,2} VT * U22
+		UnsymmRecMultUpperRStruct(n2, p1, Bstr->right, Rstr->A12->VT, p1, Bstr->A12->VT, p1, smallsize);
+
+		// B12 U = -B12 U
+		mkl_zimatcopy('C', 'N', n1, p1, -1.0, Bstr->A12->U, n1, n1);
+	}
+}
 
 
 void SymResRestoreStruct(int n, cmnode* H1str, dtype *H2 /*recovered*/, int ldh, int smallsize)
@@ -1646,10 +2296,10 @@ void UnsymmResRestoreStruct(int n, cumnode* H1str, dtype *H2 /*recovered*/, int 
 		int n2 = (int)ceil(n / 2.0);
 		int n1 = n - n2;
 
-		// A21 = A21 * A12
-		zgemm("Notrans", "Notrans", &n2, &n1, &H1str->A21->p, &alpha, H1str->A21->U, &n2, H1str->A21->VT, &H1str->A21->p, &beta, &H2[n1 + ldh * 0], &ldh);
+		// A21 = A21 U * A12 VT
+		zgemm("No", "No", &n2, &n1, &H1str->A21->p, &alpha, H1str->A21->U, &n2, H1str->A21->VT, &H1str->A21->p, &beta, &H2[n1 + ldh * 0], &ldh);
 
-		// A12 = A21*T = A12*T * A21*T
+		// A12 = A12 U * A 21 VT
 		zgemm("No", "No", &n1, &n2, &H1str->A12->p, &alpha, H1str->A12->U, &n1, H1str->A12->VT, &H1str->A12->p, &beta, &H2[0 + ldh * n1], &ldh);
 
 
@@ -1889,8 +2539,22 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 
 void alloc_dense_node(int n, cmnode* &Cstr)
 {
-	Cstr->A = (dtype*)malloc(n * n * sizeof(dtype));
+	Cstr->A = alloc_arr<dtype>(n * n);
+	Cstr->n1 = n;
 	Cstr->p = -1;
+	Cstr->n2 = n;
+	Cstr->U = NULL;
+	Cstr->VT = NULL;
+	Cstr->left = NULL;
+	Cstr->right = NULL;
+}
+
+void alloc_dense_simple_node(int n, cmnode* &Cstr)
+{
+	Cstr->A = NULL;
+	Cstr->n1 = 0;
+	Cstr->p = -2;
+	Cstr->n2 = 0;
 	Cstr->U = NULL;
 	Cstr->VT = NULL;
 	Cstr->left = NULL;
@@ -1900,7 +2564,11 @@ void alloc_dense_node(int n, cmnode* &Cstr)
 void alloc_dense_unsymm_node(int n, cumnode* &Cstr)
 {
 	Cstr->A21 = (cmnode*)malloc(sizeof(cmnode));
+	Cstr->A12 = (cmnode*)malloc(sizeof(cmnode));
+	Cstr->left = NULL;
+	Cstr->right = NULL;
 	alloc_dense_node(n, Cstr->A21);
+	alloc_dense_simple_node(n, Cstr->A12);
 }
 
 void FreeNodes(int n, cmnode* &Astr, int smallsize)
@@ -1929,6 +2597,8 @@ void FreeUnsymmNodes(int n, cumnode* &Astr, int smallsize)
 	if (n <= smallsize)
 	{
 		free_arr(Astr->A21->A);
+		free_arr(Astr->A21);
+		free_arr(Astr->A12);
 	}
 	else
 	{
@@ -2007,7 +2677,55 @@ void CopyUnsymmStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize)
 	}
 }
 
+void UnsymmCopyStruct(int n, cumnode* Astr, cumnode* Bstr, int smallsize)
+{
+	// B is already allocated
+	// ranks of A are equal to ranks of B
 
+	if (n <= smallsize)
+	{
+		zlacpy("All", &n, &n, Astr->A21->A, &n, Bstr->A21->A, &n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		zlacpy("All", &n2, &Bstr->A21->p, Astr->A21->U, &n2, Bstr->A21->U, &n2);
+		zlacpy("All", &n1, &Bstr->A12->p, Astr->A12->U, &n1, Bstr->A12->U, &n1);
+
+		zlacpy("All", &Bstr->A21->p, &n1, Astr->A21->VT, &Astr->A21->p, Bstr->A21->VT, &Bstr->A21->p);
+		zlacpy("All", &Bstr->A12->p, &n2, Astr->A12->VT, &Astr->A12->p, Bstr->A12->VT, &Bstr->A12->p);
+
+		UnsymmCopyStruct(n1, Astr->left, Bstr->left, smallsize);
+		UnsymmCopyStruct(n2, Astr->right, Bstr->right, smallsize);
+	}
+}
+
+void UnsymmClearStruct(int n, cumnode* Astr, int smallsize)
+{
+	// B is already allocated
+	// ranks of A are equal to ranks of B
+
+	if (n <= smallsize)
+	{
+		Clear(n, n, Astr->A21->A, n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		Clear(n2, Astr->A21->p, Astr->A21->U, n2);
+		Clear(n1, Astr->A12->p, Astr->A12->U, n1);
+
+		Clear(Astr->A21->p, n1, Astr->A21->VT, Astr->A21->p);
+		Clear(Astr->A12->p, n2, Astr->A12->VT, Astr->A12->p);
+
+		UnsymmClearStruct(n1, Astr->left, smallsize);
+		UnsymmClearStruct(n2, Astr->right, smallsize);
+	}
+}
 
 
 #if 0

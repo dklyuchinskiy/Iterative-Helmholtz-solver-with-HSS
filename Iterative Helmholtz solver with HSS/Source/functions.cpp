@@ -36,7 +36,7 @@ void print(int m, int n, dtype *u, int ldu, char *mess)
 		printf("%d ", i);
 		for (int j = 0; j < n; j++)
 		{
-			printf("%6.3lf ", u[i + ldu*j].real());
+			printf("%7.4lf ", u[i + ldu*j].real());
 		}
 		printf("\n");
 	}
@@ -44,16 +44,23 @@ void print(int m, int n, dtype *u, int ldu, char *mess)
 	printf("\n");
 }
 
+int my_log(int a, int b)
+{
+	return log(b) / log(a);
+}
+
 double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, double eps)
 {
 	double norm = 0;
 
 	// Norm of residual
-#pragma omp parallel for schedule(runtime)
+#pragma omp parallel for schedule(static)
 	for (int j = 0; j < k; j++)
 #pragma omp simd
 		for (int i = 0; i < n; i++)
 			Hrec[i + ldh * j] = Hrec[i + ldh * j] - Hinit[i + ldh * j];
+
+//	print(n, k, Hrec, ldh, "A - LU");
 
 	norm = zlange("Frob", &n, &k, Hrec, &ldh, NULL);
 	norm = norm / zlange("Frob", &n, &k, Hinit, &ldh, NULL);
@@ -106,6 +113,104 @@ void Hilbert(int m, int n, dtype *H, int ldh)
 		for (int i = 0; i < m; i++)
 			H[i + ldh * j] = 1.0 / (i + j + 1);
 }
+
+void Hilbert2(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+			if (i > j)
+			{
+				H[i + ldh * j] = 2.0 / (i + j + 2);
+			}
+			else
+			{
+				H[i + ldh * j] = 3.0 / (i + 0.5 * j + 3);
+			}
+}
+
+void Hilbert3(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 1.0 / (i + j + 1) + 1;
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 1.0 / (0.5 * i + j + 1) + 1;
+			}
+			else
+			{
+				H[i + ldh * j] = 2.0 / (i + j + 1) + 1;
+			}
+}
+
+void Hilbert4(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 2.0 / (i + j + 1);
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 3.0 / (i + 0.5 * j + 1.5);
+			}
+			else
+			{
+				H[i + ldh * j] = 2.0 / (0.5 * i + j + 2);
+			}
+}
+
+void Hilbert5(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 3.0 / (i + j + 1.5);
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 3.2 / (i * 0.5  + j + 2.5);
+			}
+			else
+			{
+				H[i + ldh * j] = 2.7 / (i + 0.5 * j + 3.5);
+			}
+}
+
+
+void Hilbert6(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 40.0 / (i + j + 1.5);
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 3.2 / (i * 0.5 + j + 2.5);
+			}
+			else
+			{
+				H[i + ldh * j] = 1.0 / (i + j + 1.5);
+			}
+}
+
 
 /* (m x n) matrix -> to (n x m) matrix */
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr)
@@ -643,6 +748,67 @@ void ResidCSR(int n1, int n2, dcsr* Dcsr, dtype* x_sol, dtype *f, dtype* g, doub
 	RelRes = RelRes / zlange("Frob", &size, &ione, f, &size, NULL);
 
 	free_arr(f1);
+}
+
+
+void MyLU(int n, dtype *Hinit, int ldh, int *ipiv)
+{ 
+	int n2 = ceil(n / 2);
+	int n1 = n - n2;
+	int info = 0;
+	dtype alpha = 1.0;
+	dtype alpha_mone = -1.0;
+
+	zgetrf(&n1, &n1, Hinit, &ldh, ipiv, &info);
+
+	ztrsm("Right", "Up", "No", "NonUnit", &n2, &n1, &alpha, Hinit, &ldh, &Hinit[n1 + ldh * 0], &ldh);
+	ztrsm("Left", "Low", "No", "Unit", &n1, &n2, &alpha, Hinit, &ldh, &Hinit[0 + ldh * n1], &ldh);
+
+	zgemm("no", "no", &n2, &n2, &n1, &alpha_mone, &Hinit[n1 + ldh * 0], &ldh, &Hinit[0 + ldh * n1], &ldh, &alpha, &Hinit[n1 + ldh * n1], &ldh);
+
+	zgetrf(&n2, &n2, &Hinit[n1 + ldh * n1], &ldh, ipiv, &info);
+}
+
+
+void MyLURec(int n, dtype *Hinit, int ldh, int *ipiv, int smallsize)
+{
+	int info = 0;
+	int ione = 1;
+	dtype alpha = 1.0;
+	dtype alpha_mone = -1.0;
+
+	if (n <= smallsize)
+	{
+		zgetrf(&n, &n, Hinit, &ldh, ipiv, &info);
+#ifdef PRINT
+		for (int i = 0; i < n; i++)
+			if (ipiv[i] != i + 1) printf("LUrec for n = %d row interchange: %d and %d\n", n, i + 1, ipiv[i]);
+#endif
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+
+		MyLURec(n1, Hinit, ldh, ipiv, smallsize);
+
+		zlaswp(&n2, &Hinit[0 + ldh * n1], &ldh, &ione, &n1, ipiv, &ione);
+
+		ztrsm("Right", "Up", "No", "NonUnit", &n2, &n1, &alpha, Hinit, &ldh, &Hinit[n1 + ldh * 0], &ldh);
+		ztrsm("Left", "Low", "No", "Unit", &n1, &n2, &alpha, Hinit, &ldh, &Hinit[0 + ldh * n1], &ldh);
+
+#if 1
+		zgemm("no", "no", &n2, &n2, &n1, &alpha_mone, &Hinit[n1 + ldh * 0], &ldh, &Hinit[0 + ldh * n1], &ldh, &alpha, &Hinit[n1 + ldh * n1], &ldh);
+#endif
+#if 1
+		MyLURec(n2, &Hinit[n1 + ldh * n1], ldh, &ipiv[n1], smallsize);
+
+		zlaswp(&n1, &Hinit[n1 + ldh * 0], &ldh, &ione, &n2, &ipiv[n1], &ione);
+#endif
+		// Adjust pivot indexes to level up
+		for (int i = n1; i < n; i++)
+			ipiv[i] = ipiv[i] + n1;
+	}
 }
 
 
