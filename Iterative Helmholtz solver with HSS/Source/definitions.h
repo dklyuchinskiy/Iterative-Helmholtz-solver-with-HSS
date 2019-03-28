@@ -26,13 +26,13 @@ declaration of used structures
 typedef std::complex<double> dtype;
 #define MKL_Complex16 dtype
 
-#include "C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018.1.156\windows\mkl\include\mkl.h"
+#include "C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018\windows\mkl\include\mkl.h"
 
 //#define DEBUG
 
 #define EPS 0.00000001
 
-#define min(a,b) ((a) <= (b)) ? (a) : (b)
+#define min(a,b) ((a) < (b)) ? (a) : (b)
 
 struct size_m {
 	int l;
@@ -52,9 +52,11 @@ struct BinaryMatrixTreeNode {
 
 typedef struct BinaryMatrixTreeNode mnode;
 
-struct ComplexBinaryMatrixTreeNode {
-
+struct ComplexBinaryMatrixTreeNode 
+{
+	int n2 = 0;
 	int p = 0;
+	int n1 = 0;
 	dtype *U = NULL;
 	dtype *VT = NULL;
 	dtype *A = NULL;
@@ -63,6 +65,16 @@ struct ComplexBinaryMatrixTreeNode {
 };
 
 typedef struct ComplexBinaryMatrixTreeNode cmnode;
+
+struct ComplexBinaryUnsymmetricMatrixTreeNode 
+{
+	cmnode *A21;
+	cmnode *A12;
+	struct ComplexBinaryUnsymmetricMatrixTreeNode *left = NULL;
+	struct ComplexBinaryUnsymmetricMatrixTreeNode *right = NULL;
+};
+
+typedef struct ComplexBinaryUnsymmetricMatrixTreeNode cumnode;
 
 struct MatrixCSR {
 
@@ -78,11 +90,24 @@ struct list {
 	struct list* next;
 };
 
+typedef struct list qlist;
+
+struct list2 {
+	cumnode* node;
+	struct list2* next;
+};
+
+typedef struct list2 qlist2;
+
 struct my_queue {
 	struct list *first, *last;
 };
 
-typedef struct list qlist;
+struct my_queue2 {
+	struct list2 *first, *last;
+};
+
+
 
 #define STRUCT_CSR
 
@@ -103,11 +128,12 @@ typedef struct list qlist;
 
 // parameters of Helmholtz equation
 
-#if 0
+#ifdef HELMHOLTZ
 #define omega 4
-#define ky 1.78
-#define pml 0 //max(15, c0(1, 1) / omega)
-#define beta_eq 2.23
+#define ky 1.8
+#define pml 15 //max(15, c0(1, 1) / omega)
+#define beta_eq 2.3
+#define PML
 #else
 #define omega 0
 #define ky 0
@@ -133,6 +159,9 @@ template<typename T>
 T* alloc_arr2(int n)
 {
 	T *f = (T*)malloc(n * sizeof(T));
+#pragma omp parallel for simd schedule(simd:static)
+	for (int i = 0; i < n; i++)
+		f[i] = 0.0;
 
 	return f;
 }
