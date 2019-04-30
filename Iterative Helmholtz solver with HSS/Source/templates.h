@@ -82,14 +82,19 @@ void SymRecCompressStruct(int n, dtype *A, const int lda, cmnode* &ACstr, const 
 void DiagMultStruct(int n, cmnode* Astr, dtype *d, int small_size);
 void RecMultLStruct(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void AddStruct(int n, dtype alpha, cmnode* Astr, dtype beta, cmnode* Bstr, cmnode* &Cstr, int smallsize, double eps, char *method);
+void SymUpdate4Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, cmnode* &Bstr, int smallsize, double eps, char* method);
 void SymCompUpdate2Struct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method);
+void SymCompUpdate4LowRankStruct(int n, int k1, int k2, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cumnode* &Bstr, int smallsize, double eps, char* method);
 void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, double eps, char *method);
 void SymResRestoreStruct(int n, cmnode* H1str, dtype *H2, int ldh, int smallsize);
+void SymLUfactLowRankStruct(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method);
 double rel_error_complex(int n, int k, dtype *Hrec, dtype *Hinit, int ldh, double eps);
 void Hilbert2(int m, int n, dtype *H, int ldh);
 void Hilbert3(int m, int n, dtype *H, int ldh);
 void Hilbert4(int m, int n, dtype *H, int ldh);
+void Hilbert5(int m, int n, dtype *H, int ldh);
 void Hilbert6(int m, int n, dtype *H, int ldh);
+void Hilbert7LowRank(int m, int n, dtype *H, int ldh);
 void alloc_dense_simple_node(int n, cmnode* &Cstr);
 
 // Unsymm
@@ -109,15 +114,24 @@ void UnsymmCopyStruct(int n, cumnode* Astr, cumnode* Bstr, int smallsize);
 void CopyLfactor(int n, cumnode* Astr, cumnode* &Lstr, int smallsize);
 void CopyRfactor(int n, cumnode* Astr, cumnode* &Rstr, int smallsize);
 void CopyUnsymmStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize);
-void ApplyToA21(int n, cumnode *A11, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method);
-void ApplyToA12(int n, cumnode *A22, cmnode* Astr, cumnode* L, int* ipiv, int smallsize, double eps, char *method);
+void ApplyToA21(int n, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method);
+void ApplyToA12(int n, cmnode* Astr, cumnode* L, int smallsize, double eps, char *method);
+void ApplyToA21Ver2(int p, int n, dtype* VT, int ldvt, cumnode* R, int smallsize, double eps, char *method);
+void ApplyToA12Ver2(int n, int p, dtype* U, int ldu, cumnode* L, int smallsize, double eps, char *method);
 void MyLURec(int n, dtype *Hinit, int ldh, int *ipiv, int smallsize);
-void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method);
-void UnsymmCompRecInvRightTriangStruct(int n, cumnode* Ustr, cumnode* &Bstr, int smallsize, double eps, char *method);
+void UnsymmCompRecInvLowerTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method);
+void UnsymmCompRecInvUpperTriangStruct(int n, cumnode* Ustr, cumnode* &Bstr, int smallsize, double eps, char *method);
 void UnsymmRecMultUpperRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void UnsymmRecMultUpperLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void UnsymmRecMultLowerLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
 void UnsymmRecMultLowerRStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize);
+void LowRankToUnsymmHSS(int n, int r, dtype *U, int ldu, dtype *VT, int ldvt, cumnode *&Aout, int smallsize);
+void LowRankToSymmHSS(int n, int r, dtype *U, int ldu, dtype *VT, int ldvt, cmnode *&Aout, int smallsize);
+void LowRankCholeskyFact(int n, cmnode* Astr, dtype* work, int smallsize, double eps, char* method);
+void AddSymmHSSDiag(int n, cmnode *Aout, dtype *Diag, int smallsize);
+void SolveTriangSystemA21(int p, int n, dtype* VT, int ldvt, cmnode* R, int smallsize, double eps, char *method);
+void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method);
+void LowRankToSymmHSS(int n, int r, dtype *U, int ldu, cmnode *&Aout, int smallsize);
 
 void alloc_dense_unsymm_node(int n, cumnode* &Cstr);
 void FreeUnsymmNodes(int n, cumnode* &Astr, int smallsize);
@@ -125,6 +139,11 @@ void UnsymmClearStruct(int n, cumnode* Astr, int smallsize);
 int my_log(int a, int b);
 int GetNumberOfLeaves(cumnode *root);
 void GetDistances(cumnode *root, int *dist, int &count);
+void Hilbert8Unique(int m, int n, dtype *H, int ldh);
+void MakeFullDenseSymMatrix(char part, int n, dtype *A, int lda);
+void PrintMat(int m, int n, dtype *A, int lda);
+void CholeskyFact(int n, dtype* A, int lda, int smallsize, double eps, char* method);
+void SymUpdate5Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method);
 
 
 // Solver

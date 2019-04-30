@@ -39,16 +39,21 @@ void TestAll()
 	runner.RunTest(Shell_CopyStruct, Test_CopyLfactorStruct, "Test_CopyLfactor");
 	runner.RunTest(Shell_CopyStruct, Test_CopyRfactorStruct, "Test_CopyRfactor");
 	runner.RunTest(Shell_CopyStruct, Test_UnsymmCopyStruct, "Test_UnsymmCopyStruct");
-	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA21, "Test_ApplyToA21");
-	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA12, "Test_ApplyToA12");
 	runner.RunTest(Shell_LowRankApprox, Test_PermutLowRankApprox, "Test_PermutLowRankApprox");
 	runner.RunTest(Shell_UnsymmLUfact, Test_MyLURecFact, "Test_MyLURecFact");
-#endif
-
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA12, "Test_ApplyToA12");
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA21, "Test_ApplyToA21");
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA21Ver2, "Test_ApplyToA21Ver2");
+	runner.RunTest(Shell_ApplyToA21, Test_ApplyToA12Ver2, "Test_ApplyToA12Ver2");
+	runner.RunTest(Shell_LowRankToUnsymmHSS, Test_LowRankToUnsymmHSS, "Test_LowRankToUnsymmHSS");
+	runner.RunTest(Shell_SymCompUpdate4LowRankStruct, Test_SymCompUpdate4LowRankStruct, "Test_SymCompUpdate4LowRankStruct");
 	runner.RunTest(Shell_UnsymmLUfact, Test_UnsymmLUfact, "Test_LUfact");
-
-	
-
+	runner.RunTest(Shell_UnsymmLUfact, Test_SymLUfactLowRankStruct, "Test_SymLUfactLowRankStruct");
+	runner.RunTest(Shell_ApplyToA21, Test_SolveTriangSystemA21, "Test_SolveTriangSystemA21");
+	runner.RunTest(Shell_UnsymmLUfact, Test_SymLUfactLowRankStruct, "Test_SymLUfactLowRankStruct");
+	runner.RunTest(Shell_SymCompUpdate5LowRankStruct, Test_SymCompUpdate5LowRankStruct, "Test_SymCompUpdate5LowRankStruct");
+	runner.RunTest(Shell_LowRankCholeskyStruct, Test_LowRankCholeskyStruct, "Test_LowRankCholeskyStruct");
+#endif
 
 	printf("********************\n");
 	printf("ALL TESTS: %d\nPASSED: %d \nFAILED: %d\n", runner.GetAll(), runner.GetPassed(), runner.GetFailed());
@@ -282,6 +287,61 @@ void Shell_UnsymmCompUpdate3(ptr_test_update2 func, const string& test_name, int
 				}
 }
 
+void Shell_SymCompUpdate4LowRankStruct(ptr_test_sym_rec_compress_low_rank func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+	int smallsize = 3;
+
+	double alpha = 1.0;
+
+	for (double eps = 1e-3; eps > 1e-9; eps /= 10)
+		for(double alpha = -10; alpha <= 10; alpha += 2)
+			for (int n = 3; n <= 50; n += 2)
+					{
+						try
+						{
+							numb++;
+							func(n, dtype{ alpha, 0 }, eps, method, smallsize);
+						}
+						catch (runtime_error& e)
+						{
+							++fail_count;
+							cerr << test_name << " fail: " << e.what() << endl;
+						}
+						catch (...) {
+							++fail_count;
+							cerr << "Unknown exception caught" << endl;
+						}
+					}
+}
+
+void Shell_SymCompUpdate5LowRankStruct(ptr_test_update func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+	double alpha = 1.0;
+
+	for (double eps = 1e-4; eps > 1e-8; eps /= 10)
+		for (double alpha = -6; alpha <= 6; alpha += 2)
+			for (int n = 3; n <= 40; n++)
+				for (int p = 1; p <= n; p += 2)
+					for (int smallsize = 3; smallsize <= 6; smallsize++)
+					{
+						try
+						{
+							numb++;
+							func(n, p, dtype{ alpha, 0 }, eps, method, smallsize);
+						}
+						catch (runtime_error& e)
+						{
+							++fail_count;
+							cerr << test_name << " fail: " << e.what() << endl;
+						}
+						catch (...) {
+							++fail_count;
+							cerr << "Unknown exception caught" << endl;
+						}
+					}
+}
 
 void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count)
 {
@@ -332,6 +392,57 @@ void Shell_UnsymmLUfact(ptr_test_sym_rec_compress func, const string& test_name,
 					cerr << "Unknown exception caught" << endl;
 				}
 			}
+}
+
+void Shell_LowRankToUnsymmHSS(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+
+	for (int smallsize = 3; smallsize < 6; smallsize++)
+		for (double eps = 1e-4; eps > 1e-9; eps /= 10)
+			for (int n = smallsize; n <= 50; n++)
+			{
+				try
+				{
+					numb++;
+					func(n, eps, method, smallsize);
+				}
+				catch (runtime_error& e)
+				{
+					++fail_count;
+					cerr << test_name << " fail: " << e.what() << endl;
+				}
+				catch (...) {
+					++fail_count;
+					cerr << "Unknown exception caught" << endl;
+				}
+			}
+}
+
+void Shell_LowRankCholeskyStruct(ptr_test_mult_diag func, const string& test_name, int &numb, int &fail_count)
+{
+	char method[255] = "SVD";
+
+	for (double eps = 1e-3; eps > 1e-9; eps /= 10)
+			for (int n = 3; n <= 50; n++)
+				for (int k = 1; k <= n; k++)
+					for (int smallsize = 3; smallsize <= 6; smallsize++)
+					{
+						try
+						{
+							numb++;
+							func(n, k, eps, method, smallsize);
+						}
+						catch (runtime_error& e)
+						{
+							++fail_count;
+							cerr << test_name << " fail: " << e.what() << endl;
+						}
+						catch (...) {
+							++fail_count;
+							cerr << "Unknown exception caught" << endl;
+						}
+					}
 }
 
 void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count)
@@ -1064,6 +1175,140 @@ void Test_UnsymmCompUpdate3Struct(int n, int k1, int k2, dtype alpha, double eps
 	free_arr(V2);
 }
 
+void Test_SymCompUpdate4LowRankStruct(int n, dtype alpha, double eps, char* method, int smallsize)
+{
+	//printf("*****Test for SymCompUpdate2Struct  n = %d k = %d ***** ", n, k);
+	dtype *B_rec = alloc_arr<dtype>(n * n);
+	dtype *HC = alloc_arr2<dtype>(n * n); int ldh = n;
+	dtype *H = alloc_arr2<dtype>(n * n);
+	char str[255];
+
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	double norm = 0;
+
+	Clear(n, n, HC, ldh);
+	Clear(n, n, H, ldh);
+
+	Hilbert7LowRank(n, n, HC, ldh);
+	Hilbert7LowRank(n, n, H, ldh);
+
+	cmnode *HCstr = (cmnode*)malloc(sizeof(cmnode));
+	// Compressed update
+	LowRankApproxStruct(n, n, HC, ldh, HCstr, eps, method);
+	int p = HCstr->p;
+
+	// Gen intermediate matrix Y
+	dtype *Y = alloc_arr2<dtype>(p * p); int ldy = p;
+	dtype *C = alloc_arr2<dtype>(n * p); int ldc = n;
+	Clear(p, p, Y, ldy);
+	Hilbert4(p, p, Y, ldy);
+
+	cumnode *HChss;
+	LowRankToUnsymmHSS(n, p, HCstr->U, n, HCstr->VT, HCstr->p, HChss, smallsize);
+
+	cumnode *Bstr;
+	SymCompUpdate4LowRankStruct(n, p, p, HChss, alpha, Y, ldy, HCstr->U, n, HCstr->VT, p, Bstr, smallsize, eps, method);
+
+	// C = V1 * Y
+	zgemm("No", "No", &n, &p, &p, &alpha_one, HCstr->U, &n, Y, &ldy, &beta_zero, C, &ldc);
+
+	// H = H + alpha * C * V2
+	zgemm("No", "No", &n, &n, &p, &alpha, C, &ldc, HCstr->VT, &p, &beta_one, H, &ldh);
+#if 0
+	printf("----------\n");
+	printf("A: ");
+	UnsymmPrintRanksInWidthList(HCstr);
+	printf("\nB: ");
+	UnsymmPrintRanksInWidthList(Bstr);
+	printf("---------\n");
+	UnsymmClearStruct(n, HCstr, smallsize)
+		UnsymmCopyStruct(n, Bstr, HCstr, smallsize);
+#endif
+	UnsymmResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
+
+#ifdef DEBUG
+	print(n, n, B_rec, ldb, "B_rec");
+	print(n, n, H, ldh, "H");
+#endif
+
+	// || B_rec - H || / || H ||
+	norm = rel_error_complex(n, n, B_rec, H, ldh, eps);
+	sprintf(str, "Struct: n = %d k1 = %d k2 = %d  alpha = %lf", n, p, p, alpha_one.real());
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, Bstr, smallsize);
+	FreeUnsymmNodes(n, HChss, smallsize);
+	free_arr(HCstr->U);
+	free_arr(HCstr->VT);
+	free_arr(HCstr);
+	free_arr(B_rec);
+	free_arr(H);
+	free_arr(HC);
+	free_arr(Y);
+	free_arr(C);
+}
+
+void Test_SymCompUpdate5LowRankStruct(int n, int p, dtype alpha, double eps, char* method, int smallsize)
+{
+	//printf("*****Test for SymCompUpdate2Struct  n = %d k = %d ***** ", n, k);
+	dtype *B_rec = alloc_arr<dtype>(n * n); int ldh = n;
+	dtype *H = alloc_arr2<dtype>(n * n);
+	dtype *W = alloc_arr<dtype>(n * p); int ldw = n;
+	dtype *Y = alloc_arr2<dtype>(p * p); int ldy = p;
+	dtype *C = alloc_arr2<dtype>(n * p); int ldc = n;
+	char str[255];
+
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+	double norm = 0;
+
+	Clear(n, n, H, ldh);
+
+	Hilbert5(n, p, W, ldw);
+	zsyrk("Low", "No", &n, &p, &alpha_one, W, &ldw, &beta_zero, H, &ldh);
+
+	// Gen intermediate symmetric matrix Y
+	Clear(p, p, Y, ldy);
+	Hilbert(p, p, Y, ldy);
+
+	cmnode *HChss;
+	LowRankToSymmHSS(n, p, W, ldw, HChss, smallsize);
+
+	cmnode *Bstr;
+	SymCompUpdate5LowRankStruct(n, p, HChss, alpha, Y, ldy, W, ldw, Bstr, smallsize, eps, method);
+
+	// C = V1 * Y
+	zsymm("Right", "Low", &n, &p, &alpha_one, Y, &ldy, W, &ldw, &beta_zero, C, &ldc);
+
+	// H = H + alpha * C * V2
+	zgemm("No", "Trans", &n, &n, &p, &alpha, C, &ldc, W, &ldw, &beta_one, H, &ldh);
+
+	SymResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
+
+#ifdef DEBUG
+	print(n, n, B_rec, ldb, "B_rec");
+	print(n, n, H, ldh, "H");
+#endif
+
+	// || B_rec - H || / || H ||
+	
+	norm = RelErrorPart(zlange, 'L', n, n, B_rec, ldh, H, ldh, eps);
+//	printf("norm update = %e\n", norm);
+	sprintf(str, "Struct: n = %d p = %d alpha = %lf", n, p, alpha.real());
+	AssertLess(norm, eps, str);
+
+	FreeNodes(n, Bstr, smallsize);
+	FreeNodes(n, HChss, smallsize);
+	free_arr(B_rec);
+	free_arr(H);
+	free_arr(Y);
+	free_arr(C);
+	free_arr(W);
+}
+
 void Test_SymCompRecInvStruct(int n, double eps, char *method, int smallsize)
 {
 	//printf("***** Test_SymCompRecInvStruct n = %d eps = %lf ****", n, eps);
@@ -1268,7 +1513,7 @@ void Test_ApplyToA21(int m, int n, double eps, char* method, int smallsize)
 	CopyRfactor(n, LUstr, Rstr, smallsize);
 
 	LowRankApproxStruct(m, n, H2, ldh, H2str, eps, method);
-	ApplyToA21(n, LUstr, H2str, Rstr, smallsize, eps, method);
+	ApplyToA21(n, H2str, Rstr, smallsize, eps, method);
 	zgemm("no", "no", &m, &n, &H2str->p, &alpha, H2str->U, &m, H2str->VT, &H2str->p, &beta, H3, &ldh);
 
 	norm = rel_error_complex(m, n, H3, H1, ldh, eps);
@@ -1283,14 +1528,117 @@ void Test_ApplyToA21(int m, int n, double eps, char* method, int smallsize)
 	free_arr(ipiv);
 }
 
-void Test_ApplyToA12(int m, int n, double eps, char* method, int smallsize)
+void Test_ApplyToA21Ver2(int m, int n, double eps, char* method, int smallsize)
 {
 	dtype *LU = alloc_arr2<dtype>(n * n);
 	dtype *H1 = alloc_arr2<dtype>(m * n);
 	dtype *H2 = alloc_arr2<dtype>(m * n);
 	dtype *H3 = alloc_arr2<dtype>(m * n);
 	int *ipiv = alloc_arr2<int>(n);
-	int *ipiv2 = alloc_arr2<int>(n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = m;
+	int info = 0;
+	int ione = 1.0;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	Hilbert3(n, n, LU, n);
+	Hilbert2(m, n, H1, ldh);
+	Hilbert2(m, n, H2, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		LU[i + n * i] -= 5.0;
+	}
+
+	cumnode* LUstr, *Rstr;
+	cmnode* H2str = (cmnode*)malloc(sizeof(cmnode));
+	zgetrf(&n, &n, LU, &n, ipiv, &info);
+
+	//	for (int i = 0; i < n; i++)
+		//	if (ipiv[i] != i + 1) printf("ROW CHANGE!\n");
+
+	ztrsm("Right", "Up", "No", "NonUnit", &m, &n, &alpha, LU, &n, H1, &ldh);
+
+	UnsymmRecCompressStruct(n, LU, n, LUstr, smallsize, eps, method);
+	CopyRfactor(n, LUstr, Rstr, smallsize);
+
+	LowRankApproxStruct(m, n, H2, ldh, H2str, eps, method);
+	ApplyToA21Ver2(H2str->p, n, H2str->VT, H2str->p, Rstr, smallsize, eps, method);
+	zgemm("no", "no", &m, &n, &H2str->p, &alpha, H2str->U, &m, H2str->VT, &H2str->p, &beta, H3, &ldh);
+
+	norm = rel_error_complex(m, n, H3, H1, ldh, eps);
+	sprintf(str, "Struct: sz = %d m = %d n = %d", smallsize, m, n);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, LUstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(H3);
+	free_arr(LU);
+	free_arr(ipiv);
+}
+
+void Test_SolveTriangSystemA21(int m, int n, double eps, char* method, int smallsize)
+{
+	dtype *LLT = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(m * n);
+	dtype *H2 = alloc_arr2<dtype>(m * n);
+	dtype *H3 = alloc_arr2<dtype>(m * n);
+	int *ipiv = alloc_arr2<int>(n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = m;
+	int info = 0;
+	int ione = 1.0;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	Hilbert(n, n, LLT, n);
+	Hilbert2(m, n, H1, ldh);
+	Hilbert2(m, n, H2, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		LLT[i + n * i] += 10.0;
+	}
+
+	cmnode* LLTstr;
+	cmnode* H2str = (cmnode*)malloc(sizeof(cmnode));
+
+	zpotrf("Low", &n, LLT, &n, &info);
+	ztrsm("Right", "Low", "Trans", "NonUnit", &m, &n, &alpha, LLT, &n, H1, &ldh);
+
+	SymRecCompressStruct(n, LLT, n, LLTstr, smallsize, eps, method);
+
+	LowRankApproxStruct(m, n, H2, ldh, H2str, eps, method);
+	SolveTriangSystemA21(H2str->p, n, H2str->VT, H2str->p, LLTstr, smallsize, eps, method);
+	zgemm("no", "no", &m, &n, &H2str->p, &alpha, H2str->U, &m, H2str->VT, &H2str->p, &beta, H3, &ldh);
+
+	norm = rel_error_complex(m, n, H3, H1, ldh, eps);
+	sprintf(str, "Struct: sz = %d m = %d n = %d", smallsize, m, n);
+	AssertLess(norm, eps, str);
+
+	FreeNodes(n, LLTstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(H3);
+	free_arr(LLT);
+	free_arr(ipiv);
+}
+
+
+void Test_ApplyToA12(int m, int n, double eps, char* method, int smallsize)
+{
+#undef PRINT
+	dtype *LU = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(m * n);
+	dtype *H2 = alloc_arr2<dtype>(m * n);
+	dtype *H3 = alloc_arr2<dtype>(m * n);
+	int *ipiv = alloc_arr2<int>(n);
 	char str[255];
 
 	double norm = 0;
@@ -1355,7 +1703,93 @@ void Test_ApplyToA12(int m, int n, double eps, char* method, int smallsize)
 	LowRankApproxStruct(n, m, H2, ldh, H2str, eps, method);
 	zlaswp(&H2str->p, H2str->U, &n, &ione, &n, ipiv, &ione);
 
-	ApplyToA12(n, LUstr, H2str, Lstr, ipiv2, smallsize, eps, method);
+	ApplyToA12(n, H2str, Lstr, smallsize, eps, method);
+	zgemm("no", "no", &n, &m, &H2str->p, &alpha, H2str->U, &n, H2str->VT, &H2str->p, &beta, H3, &ldh);
+
+	norm = rel_error_complex(n, m, H3, H1, ldh, eps);
+	sprintf(str, "Struct: sz = %d n = %d m = %d", smallsize, n, m);
+	AssertLess(norm, eps, str);
+
+	FreeUnsymmNodes(n, LUstr, smallsize);
+	free_arr(H1);
+	free_arr(H2);
+	free_arr(H3);
+	free_arr(LU);
+	free_arr(ipiv);
+}
+
+void Test_ApplyToA12Ver2(int m, int n, double eps, char* method, int smallsize)
+{
+	dtype *LU = alloc_arr2<dtype>(n * n);
+	dtype *H1 = alloc_arr2<dtype>(m * n);
+	dtype *H2 = alloc_arr2<dtype>(m * n);
+	dtype *H3 = alloc_arr2<dtype>(m * n);
+	int *ipiv = alloc_arr2<int>(n);
+	char str[255];
+
+	double norm = 0;
+	int ldh = n;
+	int info = 0;
+	int ione = 1;
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	Hilbert3(n, n, LU, n);
+	Hilbert2(n, m, H1, ldh);
+	Hilbert2(n, m, H2, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		LU[i + n * i] -= 5.0;
+	}
+
+	cumnode* LUstr, *Lstr;
+	cmnode* H2str = (cmnode*)malloc(sizeof(cmnode));
+	zgetrf(&n, &n, LU, &n, ipiv, &info);
+
+	//	for (int i = 0; i < n; i++)
+		//	if (ipiv[i] != i + 1) printf("ROW CHANGE!\n");
+
+	zlaswp(&m, H1, &ldh, &ione, &n, ipiv, &ione);
+
+	ztrsm("Left", "Low", "No", "Unit", &n, &m, &alpha, LU, &n, H1, &ldh);
+
+	UnsymmRecCompressStruct(n, LU, n, LUstr, smallsize, eps, method);
+	CopyLfactor(n, LUstr, Lstr, smallsize);
+
+	//(правильный тест с пивотингом)
+	// ipiv -> ipiv2
+#ifdef PRINT
+	printf("\nGet Nleaves\n");
+#endif
+	int nleaves = 0;
+	nleaves = GetNumberOfLeaves(LUstr);
+	int *dist = alloc_arr<int>(nleaves);
+	int count = 0;
+	int nn = 0;
+
+#ifdef  PRINT
+	printf("\nget distances\n");
+#endif //  PRINT
+
+#if 0
+	GetDistances(LUstr, dist, count);
+	for (int j = 0; j < nleaves; j++)
+	{
+		for (int i = 0; i < dist[j]; i++)
+		{
+			ipiv2[nn + i] = ipiv[nn + i] - nn;
+		}
+		nn += dist[j];
+	}
+#endif
+
+	//--------------------
+
+	LowRankApproxStruct(n, m, H2, ldh, H2str, eps, method);
+	zlaswp(&H2str->p, H2str->U, &n, &ione, &n, ipiv, &ione);
+
+	ApplyToA12Ver2(n, H2str->p, H2str->U, n, Lstr, smallsize, eps, method);
 	zgemm("no", "no", &n, &m, &H2str->p, &alpha, H2str->U, &n, H2str->VT, &H2str->p, &beta, H3, &ldh);
 
 	norm = rel_error_complex(n, m, H3, H1, ldh, eps);
@@ -1430,13 +1864,7 @@ void Test_CopyLfactorStruct(int n, double eps, char *method, int smallsize)
 	CopyLfactor(n, Hstr, Lstr, smallsize);
 	UnsymmResRestoreStruct(n, Lstr, H2, ldh, smallsize);
 
-	for (int j = 0; j < n; j++)
-		for (int i = 0; i < n; i++)
-		{
-			if (j > i) H1[i + ldh * j] = 0;
-		}
-
-	norm = rel_error_complex(n, n, H2, H1, ldh, eps);
+	norm = RelErrorPart(zlange, 'L', n, n, H2, ldh, H1, ldh, eps);
 	sprintf(str, "Struct: n = %d", n);
 	AssertLess(norm, eps, str);
 
@@ -1470,13 +1898,7 @@ void Test_CopyRfactorStruct(int n, double eps, char *method, int smallsize)
 	CopyRfactor(n, Hstr, Rstr, smallsize);
 	UnsymmResRestoreStruct(n, Rstr, H2, ldh, smallsize);
 
-	for (int j = 0; j < n; j++)
-		for (int i = 0; i < n; i++)
-		{
-			if (j < i) H1[i + ldh * j] = 0;
-		}
-
-	norm = rel_error_complex(n, n, H2, H1, ldh, eps);
+	norm = RelErrorPart(zlange, 'U', n, n, H2, ldh, H1, ldh, eps);
 	sprintf(str, "Struct: n = %d", n);
 	AssertLess(norm, eps, str);
 
@@ -1542,6 +1964,7 @@ void Test_PermutLowRankApprox(int m, int n, double eps, char *method)
 
 void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 {
+#undef PRINT
 //#define PRINT
 #ifdef PRINT
 	printf("----Test LU fact n = %d-----\n", n);
@@ -1574,6 +1997,20 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 #ifdef PRINT
 	printf("filling the matrix...\n");
 #endif
+
+
+//#define SYMM
+
+#ifdef SYMM
+	Hilbert(n, n, Hinit, ldh);
+	Hilbert(n, n, Hc, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		Hinit[i + ldh * i] += 3.0;
+		Hc[i + ldh * i] += 3.0;
+	}
+#else
 	Hilbert3(n, n, Hinit, ldh);
 	Hilbert3(n, n, Hc, ldh);
 
@@ -1584,6 +2021,7 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 		Hinit[i + ldh * i] -= 3.0;
 		Hc[i + ldh * i] -= 3.0;
 	}
+#endif
 #endif
 
 	cumnode *HCstr;
@@ -1659,6 +2097,7 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
 	AssertLess(norm, eps, str);
 
+//#define PRINT
 #ifdef PRINT
 	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
 	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
@@ -1673,6 +2112,462 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize)
 
 }
 
+void Test_SymLUfactLowRankStruct(int n, double eps, char* method, int smallsize)
+{
+#undef PRINT
+#define PRINT
+#ifdef PRINT
+	printf("----Test LU fact n = %d-----\n", n);
+#endif
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LUrec = alloc_arr<dtype>(n * n);
+	dtype *U = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	int *ipiv = alloc_arr<int>(n);
+	int *ipiv2 = alloc_arr<int>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+	int pivot = 0;
+
+#ifdef PRINT
+	printf("filling the matrix...\n");
+#endif
+
+#if 1
+	Hilbert6(n, n, Hinit, ldh);
+	Hilbert6(n, n, Hc, ldh);
+	Hilbert6(n, n, H, ldh);
+
+	//Hilbert7LowRank(n, n, Hinit, ldh);
+    //Hilbert7LowRank(n, n, Hc, ldh);
+	//Hilbert7LowRank(n, n, H, ldh);
+#else
+	Hilbert8Unique(n, n, Hinit, ldh);
+	Hilbert8Unique(n, n, Hc, ldh);
+	Hilbert8Unique(n, n, H, ldh);
+#endif
+
+#if 0
+	for (int i = 0; i < n - 2; i++)
+	{
+		Hinit[i + ldh * i] += 3.0;
+		Hc[i + ldh * i] += 3.0;
+		H[i + ldh * i] += 3.0;
+	}
+#endif
+
+#ifdef PRINT
+	printf("LowRank Compress");
+#endif
+
+	cmnode *HCstr = (cmnode*)malloc(sizeof(cmnode));
+	double time = omp_get_wtime();
+	LowRankApproxStruct(n, n, Hc, ldh, HCstr, eps, "SVD");
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nRank = %d\nLowRankToUnsymmHSS", time, HCstr->p);
+#endif
+	cumnode *HSSstr;
+	time = omp_get_wtime();
+	LowRankToUnsymmHSS(n, HCstr->p, HCstr->U, n, HCstr->VT, HCstr->p, HSSstr, smallsize);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nSymLUfactLowRankStruct", time);
+#endif
+	time = omp_get_wtime();
+	SymLUfactLowRankStruct(n, HSSstr, ipiv, smallsize, eps, method);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nRestore", time);
+#endif
+	time = omp_get_wtime();
+	UnsymmResRestoreStruct(n, HSSstr, LUrec, ldlu, smallsize);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\nCopy factors", time);
+#endif
+	time = omp_get_wtime();
+	zlacpy("L", &n, &n, LUrec, &ldlu, L, &ldl);
+	for (int i = 0; i < n; i++)
+		L[i + ldl * i] = 1.0;
+
+	for (int i = 0; i < n; i++)
+	{
+		if (ipiv[i] != i + 1) pivot++;
+	}
+
+#ifdef PRINT
+	//	for (int i = 0; i < n; i++)
+		//	if (ipiv[i] != i + 1) printf("GLOBAL IPIV: row %d with %d\n", i + 1, ipiv[i]);
+#endif
+
+	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
+
+	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+	printf("LU MKL");
+#endif
+	time = omp_get_wtime();
+	zgetrf(&n, &n, H, &ldh, ipiv2, &info);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	for (int i = 0; i < n; i++)
+		if (ipiv2[i] != i + 1) printf("ROW interchange\n");
+#endif
+
+#ifdef PRINT
+	printf(" time = %lf\nZGEMM", time);
+#endif
+	time = omp_get_wtime();
+	zgemm("No", "No", &n, &n, &n, &alpha_one, L, &ldl, U, &ldu, &beta_zero, Hc, &ldh);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+
+	norm = rel_error_complex(n, n, Hc, Hinit, ldh, eps);
+	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
+
+#ifndef PRINT
+	AssertLess(norm, eps, str);
+#endif
+
+#//define PRINT
+#ifdef PRINT
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d rank = %d pivot = %d info = %d\n", norm, eps, n, smallsize, HCstr->p, pivot, info);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d rank = %d pivot = %d info = %d\n", norm, eps, n, smallsize, HCstr->p, pivot, info);
+#endif
+
+	FreeUnsymmNodes(n, HSSstr, smallsize);
+	free_arr(HCstr->U);
+	free_arr(HCstr->VT);
+	free_arr(HCstr);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(Hinit);
+	free_arr(L);
+	free_arr(U);
+	free_arr(LUrec);
+
+}
+
+
+void Test_LowRankCholeskyStruct(int n, int p, double eps, char* method, int smallsize)
+{
+#undef PRINT
+
+#define PRINT
+//#define DEBUG
+#ifdef PRINT
+	printf("----Test LowRankCholesky n = %d-----\n", n);
+#endif
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LLrec = alloc_arr<dtype>(n * n);
+	dtype *BlockedLL = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	dtype *W = alloc_arr<dtype>(n * p); int ldw = n;
+	dtype *Diag = alloc_arr<dtype>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+	double time;
+
+#ifdef PRINT
+	printf("filling the matrix...\n");
+#endif
+
+	Hilbert5(n, p, W, ldh);
+
+	// low part dense matrix
+	zsyrk("Low", "No", &n, &p, &alpha_one, W, &ldw, &beta_zero, Hinit, &ldh);
+	zlacpy("Low", &n, &n, Hinit, &ldh, Hc, &ldh);
+	zlacpy("Low", &n, &n, Hinit, &ldh, H, &ldh);
+	zlacpy("Low", &n, &n, Hinit, &ldh, BlockedLL, &ldh);
+
+#if 1
+#pragma omp parallel for simd schedule(static)
+	for (int i = 0; i < n; i++)
+	{
+		Diag[i] = 10.0;
+		Hinit[i + ldh * i] += Diag[i];
+		H[i + ldh * i] += Diag[i];
+		BlockedLL[i + ldh * i] += Diag[i];
+	}
+#endif
+
+#ifdef DEBUG
+	printf("matrix init:\n");
+	PrintMat(n, n, H, ldh);
+#endif
+
+#ifdef PRINT
+	printf("LowRank Compress");
+#endif
+
+#ifdef PRINT
+	//printf(" time = %lf\nRank = %d\nLowRankToUnsymmHSS", time, p);
+#endif
+	cmnode *HSSstr;
+	time = omp_get_wtime();
+	LowRankToSymmHSS(n, p, W, ldw, HSSstr, smallsize);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nAddSymmHSSDiag", time);
+#endif
+	// D + W * W^T
+	time = omp_get_wtime();
+	AddSymmHSSDiag(n, HSSstr, Diag, smallsize);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\nSymLUfactLowRankStruct", time);
+#endif
+
+	dtype *work = alloc_arr2<dtype>(HSSstr->p * HSSstr->p);
+	time = omp_get_wtime();
+	LowRankCholeskyFact(n, HSSstr, work, smallsize, eps, method);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nRestore", time);
+#endif
+	time = omp_get_wtime();
+	SymResRestoreStruct(n, HSSstr, LLrec, ldlu, smallsize);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\nCopy factors", time);
+#endif
+
+#if 1
+	time = omp_get_wtime();
+	zlacpy("All", &n, &n, LLrec, &ldlu, L, &ldl);
+	time = omp_get_wtime() - time;
+#endif
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+	printf("Cholesky MKL");
+#endif
+	time = omp_get_wtime();
+	zpotrf("L", &n, H, &ldh, &info);
+	time = omp_get_wtime() - time;
+	if (info != 0) printf("!!! global zpotrf error n = %d\n", n);
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+
+#if 0
+	printf("ZSYRK", time);
+	time = omp_get_wtime();
+	zsyrk("L", "N", &n, &n, &alpha_one, L, &ldl, &beta_zero, Hc, &ldh);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+#endif
+
+	//CholeskyFact(n, BlockedLL, n, smallsize, eps, method);
+
+#ifdef DEBUG
+	printf("full dense cholesky:\n");
+	PrintMat(n, n, H, ldh);
+#endif
+
+	//PrintMat(n, n, BlockedLL, ldh);
+	
+	//norm = RelErrorPart(zlange, 'L', n, n, BlockedLL, ldh, H, ldh, eps);
+	norm = RelErrorPart(zlange, 'L', n, n, LLrec, ldh, H, ldh, eps);
+	//norm = RelErrorPart(zlange, 'L', n, n, LLrec, ldh, Hinit, ldh, eps);
+	sprintf(str, "Struct: sz = %d, n = %d, p = %d", smallsize, n, p);
+
+#ifndef PRINT
+	AssertLess(norm, eps, str);
+#endif
+
+//#define PRINT
+#ifdef PRINT
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d rank = %d info = %d\n", norm, eps, n, smallsize, p, info);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d rank = %d info = %d\n", norm, eps, n, smallsize, p, info);
+#endif
+
+	FreeNodes(n, HSSstr, smallsize);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(Hinit);
+	free_arr(L);
+	free_arr(W);
+	free_arr(LLrec);
+}
+# if 0
+void Test_SymLUfact(int n, double eps, char* method, int smallsize)
+{
+	//#define PRINT
+#ifdef PRINT
+	printf("----Test LU fact n = %d-----\n", n);
+#endif
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hc = alloc_arr<dtype>(n * n);
+	dtype *LUrec = alloc_arr<dtype>(n * n);
+	dtype *U = alloc_arr<dtype>(n * n);
+	dtype *L = alloc_arr<dtype>(n * n);
+	int *ipiv = alloc_arr<int>(n);
+	int *ipiv2 = alloc_arr<int>(n);
+	char str[255];
+
+	int ldh = n;
+	int ldlu = n;
+	int ldu = n;
+	int ldl = n;
+
+	dtype alpha_one = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta_one = 1.0;
+	dtype beta_zero = 0.0;
+	int ione = 1;
+	int mione = -1;
+	double norm = 0;
+	int info;
+	int pivot = 0;
+
+#ifdef PRINT
+	printf("filling the matrix...\n");
+#endif
+
+	Hilbert(n, n, Hinit, ldh);
+	Hilbert(n, n, Hc, ldh);
+
+	for (int i = 0; i < n; i++)
+	{
+		Hinit[i + ldh * i] += 3.0;
+		Hc[i + ldh * i] += 3.0;
+	}
+
+
+	cmnode *HCstr;
+#ifdef PRINT
+	printf("Compress");
+#endif
+	double time = omp_get_wtime();
+	SymRecCompressStruct(n, Hc, ldh, HCstr, smallsize, eps, method);
+	//	UnsymmPrintRanksInWidthList(HCstr);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nLU", time);
+#endif
+	time = omp_get_wtime();
+	SymLUfact(n, HCstr, ipiv, smallsize, eps, method);
+	//	UnsymmPrintRanksInWidthList(HCstr);
+	time = omp_get_wtime() - time;
+#ifdef PRINT
+	printf(" time = %lf\nRestore", time);
+#endif
+	time = omp_get_wtime();
+	SymResRestoreStruct(n, HCstr, LUrec, ldlu, smallsize);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\nCopy factors", time);
+#endif
+	time = omp_get_wtime();
+	zlacpy("L", &n, &n, LUrec, &ldlu, L, &ldl);
+	for (int i = 0; i < n; i++)
+		L[i + ldl * i] = 1.0;
+
+	for (int i = 0; i < n; i++)
+	{
+		if (ipiv[i] != i + 1) pivot++;
+	}
+
+#ifdef PRINT
+	//	for (int i = 0; i < n; i++)
+		//	if (ipiv[i] != i + 1) printf("GLOBAL IPIV: row %d with %d\n", i + 1, ipiv[i]);
+#endif
+
+	zlaswp(&n, L, &ldl, &ione, &n, ipiv, &mione);
+
+	zlacpy("U", &n, &n, LUrec, &ldlu, U, &ldu);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+	printf("LU MKL");
+#endif
+	time = omp_get_wtime();
+	zgetrf(&n, &n, H, &ldh, ipiv2, &info);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	for (int i = 0; i < n; i++)
+		if (ipiv2[i] != i + 1) printf("ROW interchange\n");
+#endif
+
+#ifdef PRINT
+	printf(" time = %lf\nZGEMM", time);
+#endif
+	time = omp_get_wtime();
+	zgemm("No", "No", &n, &n, &n, &alpha_one, L, &ldl, U, &ldu, &beta_zero, Hc, &ldh);
+	time = omp_get_wtime() - time;
+
+#ifdef PRINT
+	printf(" time = %lf\n", time);
+#endif
+
+	norm = rel_error_complex(n, n, Hc, Hinit, ldh, eps);
+	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
+	AssertLess(norm, eps, str);
+
+#ifdef PRINT
+	if (norm < eps) printf("Norm %10.8e < eps %10.8e: PASSED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+	else printf("Norm %10.8lf > eps %10.8e : FAILED for size n = %d and sz = %d pivot = %d\n", norm, eps, n, smallsize, pivot);
+#endif
+
+	FreeNodes(n, HCstr, smallsize);
+	free_arr(H);
+	free_arr(Hc);
+	free_arr(L);
+	free_arr(U);
+	free_arr(LUrec);
+
+}
+#endif
 void TestRowInterchange(int n, int m, double eps)
 {
 	dtype *A = alloc_arr<dtype>(n * n); int lda = n;
@@ -2052,6 +2947,43 @@ void Test_MyLURecFact(int n, double eps, char* method, int smallsize)
 
 }
 
+
+void Test_LowRankToUnsymmHSS(int n, double eps, char* method, int smallsize)
+{
+	dtype *H = alloc_arr<dtype>(n * n);
+	dtype *Hinit = alloc_arr<dtype>(n * n);
+	dtype *Hrec = alloc_arr<dtype>(n * n);
+
+	char str[255];
+
+	int ldh = n;
+	double norm = 0;
+
+	Hilbert3(n, n, H, ldh);
+	Hilbert3(n, n, Hinit, ldh);
+
+	cmnode *HCstr;
+	HCstr = (cmnode*)malloc(sizeof(cmnode));
+	LowRankApproxStruct(n, n, H, ldh, HCstr, eps, "SVD");
+
+	cumnode *HChss;
+	LowRankToUnsymmHSS(n, HCstr->p, HCstr->U, n, HCstr->VT, HCstr->p, HChss, smallsize);
+
+	UnsymmResRestoreStruct(n, HChss, Hrec, ldh, smallsize);
+
+	norm = rel_error_complex(n, n, Hrec, Hinit, ldh, eps);
+	sprintf(str, "Struct: sz = %d, n = %d ", smallsize, n);
+	AssertLess(norm, eps, str);
+
+
+	FreeUnsymmNodes(n, HChss, smallsize);
+	free(HCstr->U);
+	free(HCstr->VT);
+	free(HCstr);
+	free(Hinit);
+	free(H);
+	free(Hrec);
+}
 
 
 

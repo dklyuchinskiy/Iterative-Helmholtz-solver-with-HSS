@@ -211,15 +211,72 @@ void Hilbert6(int m, int n, dtype *H, int ldh)
 			}
 }
 
+void Hilbert7LowRank(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < int(m / 2); i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 1.0 / (i + j + 1) + 1;
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 1.0 / (0.5 * i + j + 1) + 1;
+			}
+			else
+			{
+				H[i + ldh * j] = 3.0 / (i + 0.5 * j + 2) + 1.5;
+			}
+}
+
+void Hilbert8Unique(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+				H[i + ldh * j] = 1.0;
+}
+
 
 /* (m x n) matrix -> to (n x m) matrix */
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr)
 {
-#pragma omp parallel for schedule(runtime)
 	for (int i = 0; i < m; i++)
-#pragma omp simd
 		for (int j = 0; j < n; j++)
 			Hcomp_tr[j + ldhtr * i] = H[i + ldh * j];
+}
+
+void MakeFullDenseSymMatrix(char part, int n, dtype *A, int lda)
+{
+	if (part == 'L')
+	{
+		for (int j = 0; j < n; j++)
+			for (int i = j; i < n; i++)
+				A[j + lda * i] = A[i + lda * j];
+	}
+	else if (part == 'U')
+	{
+		for (int i = 0; i < n; i++)
+			for (int j = i; j < n; j++)
+				A[j + lda * i] = A[i + lda * j];
+	}
+	else
+	{
+	}
+}
+
+void PrintMat(int m, int n, dtype *A, int lda)
+{
+	for (int i = 0; i < m; i++)
+	{
+		for (int j = 0; j < n; j++)
+			printf("%lf ", A[i + lda * j].real());
+		printf("\n");
+	}
+
 }
 
 void Add_dense(int m, int n, dtype alpha, dtype *A, int lda, dtype beta, dtype *B, int ldb, dtype *C, int ldc)
@@ -810,7 +867,6 @@ void MyLURec(int n, dtype *Hinit, int ldh, int *ipiv, int smallsize)
 			ipiv[i] = ipiv[i] + n1;
 	}
 }
-
 
 #if 0
 

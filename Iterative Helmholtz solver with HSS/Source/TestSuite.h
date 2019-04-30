@@ -9,6 +9,7 @@ typedef void(*ptr_test_sym_rec_compress)(int, double, char *, int);
 typedef void(*ptr_test_mult_diag)(int, int, double, char *, int);
 typedef void(*ptr_test_add)(int, dtype, dtype, double, char *, int);
 typedef void(*ptr_test_update)(int, int, dtype, double, char*, int);
+typedef void(*ptr_test_sym_rec_compress_low_rank)(int, dtype, double, char*, int);
 typedef void(*ptr_test_update2)(int, int, int, dtype, double, char*, int);
 typedef void(*ptr_test)(int, double, double, int, double, char *);
 typedef void(*ptr_test_shell)(ptr_test, const string&, int &, int &);
@@ -30,6 +31,13 @@ void Test_CopyLfactorStruct(int n, double eps, char *method, int smallsize);
 void Test_CopyRfactorStruct(int n, double eps, char *method, int smallsize);
 void Test_ApplyToA21(int m, int n, double eps, char* method, int smallsize);
 void Test_ApplyToA12(int m, int n, double eps, char* method, int smallsize);
+void Test_SymLUfact(int n, double eps, char* method, int smallsize);
+void Test_SymLUfactLowRankStruct(int n, double eps, char* method, int smallsize);
+void Test_SymCompUpdate4LowRankStruct(int n, dtype alpha, double eps, char* method, int smallsize);
+void Test_ApplyToA21Ver2(int m, int n, double eps, char* method, int smallsize);
+void Test_ApplyToA12Ver2(int m, int n, double eps, char* method, int smallsize);
+void Test_SolveTriangSystemA21(int m, int n, double eps, char* method, int smallsize);
+void Test_SymCompUpdate5LowRankStruct(int n, int p, dtype alpha, double eps, char* method, int smallsize);
 
 
 void Test_UnsymmRecCompressStruct(int n, double eps, char *method, int smallsize);
@@ -44,6 +52,8 @@ void Test_UnsymmLUfact(int n, double eps, char* method, int smallsize);
 void Test_UnsymmLUfact2(int n, double eps, char* method, int smallsize);
 void Test_MyLURecFact(int n, double eps, char* method, int smallsize);
 void Test_PermutLowRankApprox(int m, int n, double eps, char *method);
+void Test_LowRankToUnsymmHSS(int n, double eps, char* method, int smallsize);
+void Test_LowRankCholeskyStruct(int n, int p, double eps, char* method, int smallsize);
 
 // Tests Shells
 void Shell_LowRankApprox(ptr_test_low_rank func, const string& test_name, int &numb, int &fail_count);
@@ -57,7 +67,10 @@ void Shell_SymCompRecInv(ptr_test_sym_rec_compress func, const string& test_name
 void Shell_CopyStruct(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count);
 void Shell_ApplyToA21(ptr_test_mult_diag func, const string& test_name, int &numb, int &fail_count);
 void Shell_UnsymmLUfact(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count);
-
+void Shell_LowRankToUnsymmHSS(ptr_test_sym_rec_compress func, const string& test_name, int &numb, int &fail_count);
+void Shell_SymCompUpdate4LowRankStruct(ptr_test_sym_rec_compress_low_rank func, const string& test_name, int &numb, int &fail_count);
+void Shell_LowRankCholeskyStruct(ptr_test_mult_diag func, const string& test_name, int &numb, int &fail_count);
+void Shell_SymCompUpdate5LowRankStruct(ptr_test_update func, const string& test_name, int &numb, int &fail_count);
 
 // Solver
 void Test_DirFactFastDiagStructOnline(size_m x, size_m y, cmnode** Gstr, dtype *B, double thresh, int smallsize);

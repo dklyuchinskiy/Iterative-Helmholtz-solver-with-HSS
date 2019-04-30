@@ -192,7 +192,17 @@ int main()
 
 int main()
 {
-	TestAll();
+//	Test_SymCompUpdate5LowRankStruct(13, 13, -1.0, 1e-6, "SVD", 3);
+//	Test_LowRankCholeskyStruct(13, 13, 1e-6, "SVD", 3);
+//	Test_SymLUfactLowRankStruct(13, 1e-6, "SVD", 3);
+
+//	system("pause");
+//    TestAll();
+	system("pause");
+	//	Test_ApplyToA21Ver2(10, 10, 1e-6, "SVD", 3);
+//	Test_SymLUfactLowRankStruct(10, 1e-6, "SVD", 3);
+//	system("pause");
+//	Test_LowRankToUnsymmHSS(10, 1e-6, "SVD", 5);
 
 //	Test_PermutLowRankApprox(5, 7, 1e-3, "SVD");
 //	Test_PermutLowRankApprox(20, 20, 1e-3, "SVD");
@@ -221,7 +231,9 @@ int main()
 
 
 	// performance test
-//	Test_UnsymmLUfact(5000, 1e-8, "SVD", 200);
+	//Test_UnsymmLUfact(8000, 1e-8, "SVD", 500);
+
+	Test_LowRankCholeskyStruct(10000, 100, 1e-8, "SVD", 500);
 
 	system("pause");
 
