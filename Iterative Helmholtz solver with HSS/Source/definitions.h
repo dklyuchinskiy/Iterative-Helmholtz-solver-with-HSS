@@ -26,7 +26,7 @@ declaration of used structures
 typedef std::complex<double> dtype;
 #define MKL_Complex16 dtype
 
-#include "C:\Program Files (x86)\IntelSWTools\compilers_and_libraries\windows\mkl\include\mkl.h"
+#include "mkl.h"
 
 //#define DEBUG
 
