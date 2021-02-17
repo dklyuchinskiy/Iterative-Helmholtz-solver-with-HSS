@@ -26,7 +26,7 @@ declaration of used structures
 typedef std::complex<double> dtype;
 #define MKL_Complex16 dtype
 
-#include "C:\Program Files (x86)\IntelSWTools\compilers_and_libraries_2018\windows\mkl\include\mkl.h"
+#include "C:\Program Files (x86)\IntelSWTools\compilers_and_libraries\windows\mkl\include\mkl.h"
 
 //#define DEBUG
 
@@ -128,6 +128,8 @@ struct my_queue2 {
 
 // parameters of Helmholtz equation
 
+//#define HELMHOLTZ
+
 #ifdef HELMHOLTZ
 #define omega 4
 #define ky 1.8
@@ -140,6 +142,8 @@ struct my_queue2 {
 #define pml 0
 #define beta_eq 1
 #endif
+
+#define ind(x,y)        ((x) * (y))
 
 // Функция выделения памяти под массив
 

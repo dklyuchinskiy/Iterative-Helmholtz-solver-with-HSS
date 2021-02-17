@@ -14,11 +14,6 @@ using namespace std;
 
 // Test for the whole solver
 
-int ind(int j, int n)
-{
-	return n * j;
-}
-
 int compare_str(int n, char *s1, char *s2)
 {
 	for (int i = 0; i < n; i++)
@@ -91,11 +86,11 @@ void Diag(int n, dtype *H, int ldh, double value)
 void DiagVec(int n, dtype *H, int ldh, dtype *value)
 { 
 	int i = 0, j = 0;
-#pragma omp parallel private(i,j)
+//#pragma omp parallel private(i,j)
 	{
-#pragma omp for schedule(runtime)
+//#pragma omp for schedule(runtime)
 	for (j = 0; j < n; j++)
-#pragma omp simd
+//#pragma omp simd
 		for (i = 0; i < n; i++)
 		{
 			if (i == j) H[i + ldh * j] = value[j];
@@ -721,23 +716,23 @@ void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, d
 // v[i] = D[i] * v[i]
 void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
 {
-#pragma omp parallel for simd schedule(runtime)
+#pragma omp for simd
 	for (int i = 0; i < n; i++)
 		f[i] = diag[i] * v[i];
 }
 
 double F_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-//	return -8.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y);
+	return -8.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y);
 //	return 0;
-	return 2.0 *  (x * (x - xx.l) + y * (y - yy.l));
+//	return 2.0 *  (x * (x - xx.l) + y * (y - yy.l));
 }
 
 double u_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y);
+	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y);
 //	return x * x - y * y;
-	return x * y * (x - xx.l) * (y - yy.l);
+//	return x * y * (x - xx.l) * (y - yy.l);
 }
 
 double F_ex(double x, double y, double z)

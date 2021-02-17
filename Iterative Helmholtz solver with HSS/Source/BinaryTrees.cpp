@@ -952,6 +952,64 @@ void RecMultLStruct(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int
 	}
 }
 
+//
+void RecMultLStructWork(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, dtype *work1, int lwork1, dtype *work2, int lwork2, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &n, &m, &n, &alpha, Astr->A, &n, X, &ldx, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		int full_memory = 2 * m * n;
+		dtype *Y12 = work2;
+		dtype *Y21 = &work2[n1 * m];
+		dtype *Y11 = &work2[n2 * m + n1 * m];
+		dtype *Y22 = &work2[n1 * m + n2 * m + n1 * m];
+
+		dtype *inter1 = work1; // column major - lda = column
+		dtype *inter2 = &work1[n1 * n2];
+
+		int ldy12 = n1;
+		int ldy21 = n2;
+		int ldy11 = n1;
+		int ldy22 = n2;
+
+		int cur_lwork = lwork2 - full_memory;
+		int cur_lwork2 = cur_lwork / 2;
+
+		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
+		zgemm("No", "No", &n2, &n1, &Astr->p, &alpha, Astr->U, &n2, Astr->VT, &Astr->p, &beta, inter1, &n2);
+
+		// Y21 = inter1 (n2 x n1) * X(1...n1, :) (n1 x n)
+		zgemm("No", "No", &n2, &m, &n1, &alpha, inter1, &n2, &X[0 + 0 * ldx], &ldx, &beta, Y21, &ldy21);
+
+		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
+		zgemm("Trans", "Trans", &n1, &n2, &Astr->p, &alpha, Astr->VT, &Astr->p, Astr->U, &n2, &beta, inter2, &n1);
+
+		// Y12 = inter2 (n1 x n2) * X(n1...m, :) (n2 x n)
+		zgemm("No", "No", &n1, &m, &n2, &alpha, inter2, &n1, &X[n1 + 0 * ldx], &ldx, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+
+		RecMultLStructWork(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, work1, lwork1, &work2[full_memory], cur_lwork2, smallsize);
+		RecMultLStructWork(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, work1, lwork1, &work2[full_memory + cur_lwork2], cur_lwork2, smallsize);
+
+		// first part of Y = Y11 + Y12
+		mkl_zomatadd('C', 'N', 'N', n1, m, 1.0, Y11, ldy11, 1.0, Y12, ldy12, &Y[0 + ldy * 0], ldy);
+		// op_mat(n1, m, Y11, Y12, n1, '+');
+		// dlacpy("All", &n1, &m, Y11, &n1, &Y[0 + ldy * 0], &ldy);
+
+		// second part of Y = Y21 + Y22
+		mkl_zomatadd('C', 'N', 'N', n2, m, 1.0, Y21, ldy21, 1.0, Y22, ldy22, &Y[n1 + ldy * 0], ldy);
+		// op_mat(n2, m, Y21, Y22, n2, '+');
+		// dlacpy("All", &n2, &m, Y21, &n2, &Y[n1 + ldy * 0], &ldy);
+	}
+}
+
 /* Y = A * X, where A - compressed n * n, X - dense n * m, Y - dense n * m */
 void UnsymmRecMultLStruct(int n, int m, cumnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, int smallsize)
 {
@@ -2528,9 +2586,19 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 
 	printf("Solving of the system...\n");
 	tt = omp_get_wtime();
-
+#if 0
 	DirSolveFastDiagStruct(x.n, y.n, Gstr, B, f, x_sol, thresh, smallsize);
-
+#else
+	int size2D = x.n * y.n;
+	int lwork1 = size2D + x.n;
+	int levels = ceil(log2(ceil((double)x.n / smallsize))) + 1;
+	int lwork2 = x.n * x.n / 2;
+	int lwork3 = 2 * x.n * 1 * levels;
+	int lwork = lwork1 + lwork2 + lwork3;
+	dtype *work = alloc_arr<dtype>(lwork);
+	DirSolveFastDiagStructWork(x.n, y.n, Gstr, B, f, x_sol, work, lwork, thresh, smallsize);
+	free(work); 
+#endif
 	tt = omp_get_wtime() - tt;
 	if (compare_str(7, bench, "print_time"))
 	{
@@ -2544,7 +2612,8 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 	ResidCSR(x.n, y.n, Dcsr, x_sol, f, g, RelRes);
 
 	printf("RelRes = %10.8lf\n", RelRes);
-	if (RelRes < thresh)
+	//if (RelRes < thresh)
+	if (1)
 	{
 		success = 1;
 		itcount = 0;
@@ -2557,6 +2626,7 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 			itcount = 0;
 			while ((RelRes > thresh) && (itcount < ItRef))
 			{
+				system("pause");
 				tt = omp_get_wtime();
 
 				DirSolveFastDiagStruct(x.n, y.n, Gstr, B, g, x1, thresh, smallsize);
@@ -2688,6 +2758,7 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	int n = n1;
 	int nbr = n2;
 	int size = n * nbr;
+
 	dtype *tb = alloc_arr2<dtype>(size);
 	dtype *y = alloc_arr2<dtype>(n);
 
@@ -2720,6 +2791,47 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 
 	free_arr(tb);
 	free_arr(y);
+}
+
+void DirSolveFastDiagStructWork(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, dtype *x, dtype *work, int lwork, double eps, int smallsize)
+{
+	int n = n1;
+	int nbr = n2;
+	int size2D = n * nbr;
+	int ione = 1;
+	dtype fone = { 1.0, 0.0 };
+	dtype mone = { -1.0, 0.0 };
+
+	// lwork = size + n
+	dtype *tb = work;
+	dtype *y = &work[size2D];
+
+	zcopy(&n, f, &ione, tb, &ione);
+
+	int levels = ceil(log2(ceil((double)n / smallsize))) + 1;
+	int lwork1 = n * n / 2;
+	int lwork2 = 2 * n * 1 * levels;
+	double time1 = 0, time2 = 0;
+
+	for (int k = 1; k < nbr; k++)
+	{
+		RecMultLStructWork(n, 1, Gstr[k - 1], &tb[ind(k - 1, n)], size2D, y, n, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+		DenseDiagMult(n, &B[ind(k - 1, n)], y, y);
+
+#pragma omp parallel for simd
+		for (int i = 0; i < n; i++)
+			tb[ind(k, n) + i] = f[ind(k, n) + i] - y[i];
+	}
+
+	RecMultLStructWork(n, 1, Gstr[nbr - 1], &tb[ind(nbr - 1, n)], size2D, &x[ind(nbr - 1, n)], size2D, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+
+	for (int k = nbr - 2; k >= 0; k--)
+	{
+		DenseDiagMult(n, &B[ind(k, n)], &x[ind(k + 1, n)], y);
+		zaxpby(&n, &fone, &tb[ind(k, n)], &ione, &mone, y, &ione);
+
+		RecMultLStructWork(n, 1, Gstr[k], y, n, &x[ind(k, n)], size2D, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+	}
 }
 
 void alloc_dense_node(int n, cmnode* &Cstr)

@@ -45,7 +45,7 @@ void SolveTriangSystemA21(int p, int n, dtype* VT, int ldvt, cmnode* R, int smal
 }
 
 // W * WT - V * Y * VT, Y - symmetric
-void SymUpdate5Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method)
+void SymUpdate5Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, dtype *V, int ldv, int smallsize, double eps, char* method)
 {
 	dtype alpha_one = 1.0;
 	dtype beta_zero = 0.0;
@@ -53,73 +53,33 @@ void SymUpdate5Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype
 
 	// Ranks
 	int p = Astr->p;
-	Bstr->p = p;
 
-#if 0
-	dtype *EY = alloc_arr<dtype>(p * p);
-	zlacpy("L", &p, &p, Y, &ldy, EY, &p);
-
-	MultVectorConst(p * p, EY, alpha, EY);
-
-	// Y = E + Y
-	for (int i = 0; i < p; i++)
-		EY[i + p * i] += 1.0;
-#endif
-
-#if 0
-	// B{2,1} = U21*(V21'*V12);
-	Bstr->U = alloc_arr2<dtype>(n2 * p);
-	zsymm("Right", "Low", &n2, &p, &alpha_one, EY, &p, Astr->U, &n2, &beta_zero, Bstr->U, &n2);
-
-	Bstr->VT = alloc_arr2<dtype>(p * n1);
-	zlacpy("All", &p, &n1, Astr->VT, &p, Bstr->VT, &p);
-#else
-	// B{2,1} = U21*(V21'*V12);
-	Bstr->U = alloc_arr2<dtype>(n2 * p);
-	zlacpy("All", &n2, &p, Astr->U, &n2, Bstr->U, &n2);
-
-	Bstr->VT = alloc_arr2<dtype>(p * n1);
-	zlacpy("All", &p, &n1, Astr->VT, &p, Bstr->VT, &p);
 	// Bstr->VT = Astr->VT + alpha * Y * VT 
 	dtype *VT = alloc_arr2<dtype>(p * n1); int ldvt = p;
 	Mat_Trans(n1, p, V, ldv, VT, ldvt);
 
-	zsymm("Left", "Low", &p, &n1, &alpha, Y, &p, VT, &ldvt, &beta_one, Bstr->VT, &p);
+	zsymm("Left", "Low", &p, &n1, &alpha, Y, &p, VT, &ldvt, &beta_one, Astr->VT, &p);
 
-#endif
-
-//	free_arr(EY);
+	free_arr(VT);
 }
 
 // (n x k) (k x k) (k x n)
-void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method)
+void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, int smallsize, double eps, char* method)
 {
 	dtype alpha_one = 1.0;
 	dtype beta_zero = 0.0;
 	dtype beta_one = 1.0;
 
-	if (abs(alpha) < 10e-8)
-	{
-		CopyStruct(n, Astr, Bstr, smallsize);
-		return;
-	}
-
-	Bstr = (cmnode*)malloc(sizeof(cmnode));
-
 	if (n <= smallsize)
 	{
 		// X = X + alpha * V * Y * VT
-		alloc_dense_node(n, Bstr);
 
 		// C = V * Y
 		dtype *C = alloc_arr2<dtype>(n * k); int ldc = n;
 		zsymm("Right", "Low", &n, &k, &alpha_one, Y, &ldy, V, &ldv, &beta_zero, C, &ldc);
 
-		// Copy Astr->A to A_init
-		zlacpy("All", &n, &n, Astr->A, &n, Bstr->A, &n);
-
 		// X = X + alpha * C * Vt
-		zgemm("No", "Trans", &n, &n, &k, &alpha, C, &ldc, V, &ldv, &beta_one, Bstr->A, &n);
+		zgemm("No", "Trans", &n, &n, &k, &alpha, C, &ldc, V, &ldv, &beta_one, Astr->A, &n);
 
 		free_arr(C);
 	}
@@ -127,8 +87,6 @@ void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype 
 	{
 		int n2 = (int)ceil(n / 2.0); // n2 > n1
 		int n1 = n - n2;
-
-		Bstr = (cmnode*)malloc(sizeof(cmnode));
 
 #if 0
 		printf("-----------------------------\n");
@@ -147,15 +105,15 @@ void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype 
 		printf("-----------------------------\n");
 #endif
 		// n2 * n1 = (n2 x p) (p x n1) = (n2 x p) (p x n1 - p x p  *  p x n1)
-		SymUpdate5Subroutine(n2, n1, alpha, Astr, Y, ldy, &V[0 + ldv * 0], ldv, Bstr, smallsize, eps, method);
+		SymUpdate5Subroutine(n2, n1, alpha, Astr, Y, ldy, &V[0 + ldv * 0], ldv, smallsize, eps, method);
 
 		if (Astr->p != k) printf("!!! error: different sizes of ranks!!!\n");
 
 		// B{1,1} = SymCompUpdate2 (A{1,1}, Y, V(1:n1,:), alpha, eps, method);
-		SymCompUpdate5LowRankStruct(n1, k, Astr->left, alpha, Y, ldy, &V[0 + ldv * 0], ldv, Bstr->left, smallsize, eps, method);
+		SymCompUpdate5LowRankStruct(n1, k, Astr->left, alpha, Y, ldy, &V[0 + ldv * 0], ldv, smallsize, eps, method);
 
 		// B{2,2} = SymCompUpdate2 (A{2,2}, Y, V(m:n ,:), alpha, eps, method);
-		SymCompUpdate5LowRankStruct(n2, k, Astr->right, alpha, Y, ldy, &V[n1 + ldv * 0], ldv, Bstr->right, smallsize, eps, method);
+		SymCompUpdate5LowRankStruct(n2, k, Astr->right, alpha, Y, ldy, &V[n1 + ldv * 0], ldv, smallsize, eps, method);
 	}
 }
 
@@ -205,13 +163,7 @@ void LowRankCholeskyFact(int n, cmnode* Astr, dtype *work /*size of (p x p)*/, i
 		SymResRestoreStruct(n, Astr, A, n, smallsize);
 		PrintMat(n, n, A, n);
 #endif
-
-		cmnode* Bstr;
-		SymCompUpdate5LowRankStruct(n2, Astr->p, Astr->right, alpha_mone, work, Astr->p, Astr->U, n2, Bstr, smallsize, eps, method);
-
-		FreeNodes(n2, Astr->right, smallsize);
-		CopyStruct(n2, Bstr, Astr->right, smallsize);
-		FreeNodes(n2, Bstr, smallsize);
+		SymCompUpdate5LowRankStruct(n2, Astr->p, Astr->right, alpha_mone, work, Astr->p, Astr->U, n2, smallsize, eps, method);
 
 #ifdef PRINT
 		printf("after A22 low rank update\n");

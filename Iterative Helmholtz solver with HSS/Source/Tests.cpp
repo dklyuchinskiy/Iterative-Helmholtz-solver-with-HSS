@@ -1277,8 +1277,7 @@ void Test_SymCompUpdate5LowRankStruct(int n, int p, dtype alpha, double eps, cha
 	cmnode *HChss;
 	LowRankToSymmHSS(n, p, W, ldw, HChss, smallsize);
 
-	cmnode *Bstr;
-	SymCompUpdate5LowRankStruct(n, p, HChss, alpha, Y, ldy, W, ldw, Bstr, smallsize, eps, method);
+	SymCompUpdate5LowRankStruct(n, p, HChss, alpha, Y, ldy, W, ldw, smallsize, eps, method);
 
 	// C = V1 * Y
 	zsymm("Right", "Low", &n, &p, &alpha_one, Y, &ldy, W, &ldw, &beta_zero, C, &ldc);
@@ -1286,7 +1285,7 @@ void Test_SymCompUpdate5LowRankStruct(int n, int p, dtype alpha, double eps, cha
 	// H = H + alpha * C * V2
 	zgemm("No", "Trans", &n, &n, &p, &alpha, C, &ldc, W, &ldw, &beta_one, H, &ldh);
 
-	SymResRestoreStruct(n, Bstr, B_rec, ldh, smallsize);
+	SymResRestoreStruct(n, HChss, B_rec, ldh, smallsize);
 
 #ifdef DEBUG
 	print(n, n, B_rec, ldb, "B_rec");
@@ -1300,7 +1299,6 @@ void Test_SymCompUpdate5LowRankStruct(int n, int p, dtype alpha, double eps, cha
 	sprintf(str, "Struct: n = %d p = %d alpha = %lf", n, p, alpha.real());
 	AssertLess(norm, eps, str);
 
-	FreeNodes(n, Bstr, smallsize);
 	FreeNodes(n, HChss, smallsize);
 	free_arr(B_rec);
 	free_arr(H);

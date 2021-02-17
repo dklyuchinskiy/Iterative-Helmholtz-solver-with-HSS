@@ -192,13 +192,14 @@ int main()
 
 int main()
 {
+#if 0
 //	Test_SymCompUpdate5LowRankStruct(13, 13, -1.0, 1e-6, "SVD", 3);
 //	Test_LowRankCholeskyStruct(13, 13, 1e-6, "SVD", 3);
 //	Test_SymLUfactLowRankStruct(13, 1e-6, "SVD", 3);
 
 //	system("pause");
 //    TestAll();
-	system("pause");
+	//system("pause");
 	//	Test_ApplyToA21Ver2(10, 10, 1e-6, "SVD", 3);
 //	Test_SymLUfactLowRankStruct(10, 1e-6, "SVD", 3);
 //	system("pause");
@@ -233,22 +234,35 @@ int main()
 	// performance test
 	//Test_UnsymmLUfact(8000, 1e-8, "SVD", 500);
 
-	Test_LowRankCholeskyStruct(10000, 100, 1e-8, "SVD", 500);
+	//Test_LowRankCholeskyStruct(10000, 100, 1e-8, "SVD", 500);
 
-	system("pause");
+	//system("pause");
+#endif
+
+#ifdef _OPENMP
+	int nthr = omp_get_max_threads();
+	printf("Max_threads: %d threads\n", nthr);
+	//omp_set_dynamic(0);
+	nthr = 1;
+	omp_set_num_threads(nthr);
+	mkl_set_num_threads(nthr);
+	printf("Run in parallel on %d threads\n", nthr);
+#else
+	printf("Run sequential version on 1 thread\n");
+#endif
 
 #if 1
-	int n1 = 400;		    // number of point across the directions
-	int n2 = 400;
+	int n1 = 800;		    // number of point across the directions
+	int n2 = 800;
 
 
 	int n = n1 + 2 * pml;				// size of blocks
 	int NB = n2 + 2 * pml;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
-	int smallsize = 100;
-	double thresh = 1e-6;	// stop level of algorithm by relative error
+	int smallsize = 400;
+	double thresh = 1e-8;	// stop level of algorithm by relative error
 
-	int ItRef = 200;		// Maximal number of iterations in refinement
+	int ItRef = 100;		// Maximal number of iterations in refinement
 	char bench[255] = "print_time"; // parameter into solver to show internal results
 	int sparse_size = n + 2 * (n - 1) + 2 * (n - n1);
 	int non_zeros_in_3diag = n + (n - 1) * 2 + (n - n1) * 2 - (n1 - 1) * 2;
@@ -310,13 +324,6 @@ int main()
 	double RelRes = 0;
 	double norm = 0;
 	double timer = 0;
-	int nthr = 1;
-
-#ifdef _OPENMP
-	nthr = omp_get_max_threads();
-#endif
-
-	printf("Run in parallel on %d threads\n", nthr);
 
 	printf("Grid steps: hx = %lf hy = %lf\n", x.h, y.h);
 
@@ -330,7 +337,7 @@ int main()
 	GenSparseMatrix(x, y, z, B_mat, ldb, D, ldd, B_mat, ldb, Dcsr);
 #else
 	GenSparseMatrixOnline2D(x, y, B, B_mat, n, D, n, B_mat, n, Dcsr);
-
+	
 	// Generation of vector of solution (to compare with obtained) and vector of RHS
 #ifdef HELMHOLTZ
 	GenRHSandSolution2D_Syntetic(x, y, Dcsr, x_orig, f);
@@ -345,7 +352,7 @@ int main()
 	printf("Non_zeros in block-tridiagonal matrix: %d\n", non_zeros_in_block3diag);
 
 	//	Test_CompareColumnsOfMatrix(n1, n2, n3, D, ldd, B, Dcsr, thresh);
-	Test_TransferBlock3Diag_to_CSR(n1, n2, Dcsr, x_orig, f, thresh);
+	//Test_TransferBlock3Diag_to_CSR(n1, n2, Dcsr, x_orig, f, thresh);
 #endif
 
 	printf("Solving %d x %d Helmholtz equation\n", n1, n2);
@@ -379,10 +386,11 @@ int main()
 
 	if (norm < thresh) printf("Norm %12.10e < eps %12.10lf: PASSED\n", norm, thresh);
 	else printf("Norm %12.10lf > eps %12.10lf : FAILED\n", norm, thresh);
-
+	
+	system("pause");
 
 #ifdef STRUCT_CSR
-	Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
+	//Test_DirFactFastDiagStructOnline(x, y, Gstr, B, thresh, smallsize);
 	//Test_DirSolveFactDiagStructConvergence(x, y, z, Gstr, thresh, smallsize);
 	//Test_DirSolveFactDiagStructBlockRanks(x, y, Gstr);
 	//Test_NonZeroElementsInFactors(x, y, Gstr, B, thresh, smallsize);

@@ -3,7 +3,6 @@
 /****************************
 Prototypes for all functions.
 ****************************/
-
 using namespace std;
 
 // functions.cpp
@@ -55,7 +54,6 @@ void print_vec(int size, int *vec1, double *vec2, char *name);
 void print_vec_complex(int size, dtype *p2, char *name);
 
 int compare_str(int n, char *s1, char *s2);
-int ind(int j, int n);
 
 map<vector<int>, double> dense_to_sparse(int m, int n, double *DD, int ldd, int *i_ind, int *j_ind, double *d);
 map<vector<int>, double> block3diag_to_CSR(int n1, int n2, int blocks, double *BL, int ldbl, double *A, int lda, double *BR, int ldbr, dcsr* Acsr);
@@ -130,7 +128,7 @@ void LowRankToSymmHSS(int n, int r, dtype *U, int ldu, dtype *VT, int ldvt, cmno
 void LowRankCholeskyFact(int n, cmnode* Astr, dtype* work, int smallsize, double eps, char* method);
 void AddSymmHSSDiag(int n, cmnode *Aout, dtype *Diag, int smallsize);
 void SolveTriangSystemA21(int p, int n, dtype* VT, int ldvt, cmnode* R, int smallsize, double eps, char *method);
-void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method);
+void SymCompUpdate5LowRankStruct(int n, int k, cmnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V, int ldv, int smallsize, double eps, char* method);
 void LowRankToSymmHSS(int n, int r, dtype *U, int ldu, cmnode *&Aout, int smallsize);
 
 void alloc_dense_unsymm_node(int n, cumnode* &Cstr);
@@ -144,7 +142,8 @@ void MakeFullDenseSymMatrix(char part, int n, dtype *A, int lda);
 void PrintMat(int m, int n, dtype *A, int lda);
 void CholeskyFact(int n, dtype* A, int lda, int smallsize, double eps, char* method);
 void SymUpdate5Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, dtype *V, int ldv, cmnode* &Bstr, int smallsize, double eps, char* method);
-
+void RecMultLStructWork(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, dtype *work1, int lwork1, dtype *work2, int lwork2, int smallsize);
+void DirSolveFastDiagStructWork(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, dtype *x, dtype *work, int lwork, double eps, int smallsize);
 
 // Solver
 void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, dtype *f, dcsr* Dcsr, double thresh, int smallsize, int ItRef, char *bench,
