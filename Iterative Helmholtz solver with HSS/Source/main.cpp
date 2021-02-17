@@ -252,15 +252,20 @@ int main()
 #endif
 
 #if 1
-	int n1 = 800;		    // number of point across the directions
-	int n2 = 800;
-
+	int n1 = 1000;		    // number of point across the directions
+	int n2 = 1000;
 
 	int n = n1 + 2 * pml;				// size of blocks
 	int NB = n2 + 2 * pml;			// number of blocks
 	int size = n * NB;		// size of vector x and f: n1 * n2
-	int smallsize = 400;
-	double thresh = 1e-8;	// stop level of algorithm by relative error
+	int smallsize = 125;
+	double thresh = 1e-4;	// stop level of algorithm by relative error
+
+	// solving stage
+	// perf sm 1000 - 1.81 s
+	//		sm 500  - 0.83 s
+	//		sm 250  - 0.49 s
+	//		sm 125  - 0.41 s
 
 	int ItRef = 100;		// Maximal number of iterations in refinement
 	char bench[255] = "print_time"; // parameter into solver to show internal results

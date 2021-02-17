@@ -94,6 +94,7 @@ void Hilbert5(int m, int n, dtype *H, int ldh);
 void Hilbert6(int m, int n, dtype *H, int ldh);
 void Hilbert7LowRank(int m, int n, dtype *H, int ldh);
 void alloc_dense_simple_node(int n, cmnode* &Cstr);
+void RecMultLStructWork2(int n, int m, cmnode* Astr, dtype* X, int ldx, dtype beta, dtype* Y, int ldy, dtype* work1, int lwork1, int smallsize);
 
 // Unsymm
 void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method);
