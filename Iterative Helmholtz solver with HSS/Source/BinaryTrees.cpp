@@ -266,6 +266,7 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 	int lwork = -1;
 	dtype wkopt;
 	double ropt;
+	double time;
 
 	dtype *VT = (dtype*)malloc(n1 * n1 * sizeof(dtype)); int ldvt = n1;
 	double *S = (double*)malloc(mn * sizeof(double));
@@ -276,7 +277,10 @@ void LowRankApproxStruct(int n2, int n1 /* size of A21 = A */,
 	double *rwork = (double*)malloc(5 * mn * sizeof(double));
 
 	// A = U1 * S * V1
+	time = omp_get_wtime();
 	zgesvd("Over", "Sing", &n2, &n1, A, &lda, S, VT, &ldvt, VT, &ldvt, work, &lwork, rwork, &info);
+	time = omp_get_wtime() - time;
+	//printf("time SVD = %lf\n", time);
 #else
 	dtype *U = (dtype*)malloc(n2 * n2 * sizeof(dtype)); int ldu = n2;
 
@@ -616,7 +620,7 @@ void CopyRfactor(int n, cumnode* Astr, cumnode* &Rstr, int smallsize)
 	}
 }
 
-void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method)
+void ApplyToA21(int n, cmnode* Astr, cumnode* R, int smallsize, double eps, char *method)
 {
 	int ione = 1;
 	dtype alpha = 1.0;
@@ -632,7 +636,7 @@ void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, do
 		dtype *Y = alloc_arr<dtype>(Astr->p * n); int ldy = Astr->p;
 
 		// Rinv = R^{-1}
-		UnsymmCompRecInvRightTriangStruct(n, R, Rinv, smallsize, eps, method);
+		UnsymmCompRecInvUpperTriangStruct(n, R, Rinv, smallsize, eps, method);
 
 		// Apply Rinv to the right of A21 VT (save result in Y)
 		UnsymmRecMultUpperRStruct(n, Astr->p, Rinv, Astr->VT, Astr->p, Y, ldy, smallsize);
@@ -644,7 +648,52 @@ void ApplyToA21(int n, cumnode* A11, cmnode* Astr, cumnode* R, int smallsize, do
 	}
 }
 
-void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int smallsize, double eps, char *method)
+#if 1
+// VT * R^(-1) = X  ---->  X * R = VT  <--->  (p * n) * (n * n) = (p * n) // p строк
+void ApplyToA21Ver2(int p, int n, dtype* VT, int ldvt, cumnode* R, int smallsize, double eps, char *method)
+{
+	int ione = 1;
+	dtype zero = 0.0;
+	dtype one = 1.0;
+	dtype mone = -1.0;
+
+	if (n <= smallsize)
+	{
+		ztrsm("Right", "Up", "No", "NonUnit", &p, &n, &one, R->A21->A, &n, VT, &ldvt);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		int p2 = (int)ceil(p / 2.0); // p2 > p1
+		int p1 = p - p2;
+
+		dtype *inter1 = alloc_arr<dtype>(p1 * R->A12->p);
+		dtype *inter2 = alloc_arr<dtype>(p2 * R->A12->p);
+
+		if (p1 != 0) ApplyToA21Ver2(p1, n1, &VT[0 + ldvt * 0], ldvt, R->left, smallsize, eps, method);
+		ApplyToA21Ver2(p2, n1, &VT[p1 + ldvt * 0], ldvt, R->left, smallsize, eps, method);
+
+		if (p1 != 0)
+		{
+			zgemm("No", "No", &p1, &R->A12->p, &n1, &one, &VT[0 + ldvt * 0], &ldvt, R->A12->U, &n1, &zero, inter1, &p1);
+			zgemm("No", "No", &p1, &n2, &R->A12->p, &mone, inter1, &p1, R->A12->VT, &R->A12->p, &one, &VT[0 + ldvt * n1], &ldvt);
+		}
+
+		zgemm("No", "No", &p2, &R->A12->p, &n1, &one, &VT[p1 + ldvt * 0], &ldvt, R->A12->U, &n1, &zero, inter2, &p2);
+		zgemm("No", "No", &p2, &n2, &R->A12->p, &mone, inter2, &p2, R->A12->VT, &R->A12->p, &one, &VT[p1 + ldvt * n1], &ldvt);
+
+		if (p1 != 0) ApplyToA21Ver2(p1, n2, &VT[0 + ldvt * n1], ldvt, R->right, smallsize, eps, method);
+		ApplyToA21Ver2(p2, n2, &VT[p1 + ldvt * n1], ldvt, R->right, smallsize, eps, method);
+
+		free_arr(inter1);
+		free_arr(inter2);
+	}
+}
+#endif
+
+void ApplyToA12(int n, cmnode* A12, cumnode* L, int smallsize, double eps, char *method)
 {
 	int ione = 1;
 	int mione = -1;
@@ -661,7 +710,7 @@ void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int sma
 		dtype *Y = alloc_arr<dtype>(n * A12->p); int ldy = n;
 
 		// Linv = L^{-1}
-		UnsymmCompRecInvLeftTriangStruct(n, L, Linv, smallsize, eps, method);
+		UnsymmCompRecInvLowerTriangStruct(n, L, Linv, smallsize, eps, method);
 
 		// Apply L^{-1} to U12
 		UnsymmRecMultLowerLStruct(n, A12->p, Linv, A12->U, n, Y, ldy, smallsize);
@@ -673,6 +722,49 @@ void ApplyToA12(int n, cumnode* A11, cmnode* A12, cumnode* L, int *ipiv, int sma
 	}
 }
 
+#if 1
+void ApplyToA12Ver2(int n, int p, dtype* U, int ldu, cumnode* L, int smallsize, double eps, char *method)
+{
+	int ione = 1;
+	dtype one = 1.0;
+	dtype zero = 0.0;
+	dtype mone = -1.0;
+
+	if (n <= smallsize)
+	{
+		ztrsm("Left", "Low", "No", "Unit", &n, &p, &one, L->A21->A, &n, U, &ldu);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		int p2 = (int)ceil(p / 2.0); // p2 > p1
+		int p1 = p - p2;
+
+		dtype *inter1 = alloc_arr<dtype>(L->A21->p * p1);
+		dtype *inter2 = alloc_arr<dtype>(L->A21->p * p2);
+
+		if (p1 != 0) ApplyToA12Ver2(n1, p1, &U[0 + ldu * 0], ldu, L->left, smallsize, eps, method);
+		ApplyToA12Ver2(n1, p2, &U[0 + ldu * p1], ldu, L->left, smallsize, eps, method);
+
+		if (p1 != 0)
+		{
+			zgemm("No", "No", &L->A21->p, &p1, &n1, &one, L->A21->VT, &L->A21->p, &U[0 + ldu * 0], &ldu, &zero, inter1, &L->A21->p);
+			zgemm("No", "No", &n2, &p1, &L->A21->p, &mone, L->A21->U, &n2, inter1, &L->A21->p, &one, &U[n1 + ldu * 0], &ldu);
+		}
+
+		zgemm("No", "No", &L->A21->p, &p2, &n1, &one, L->A21->VT, &L->A21->p, &U[0 + ldu * p1], &ldu, &zero, inter2, &L->A21->p);
+		zgemm("No", "No", &n2, &p2, &L->A21->p, &mone, L->A21->U, &n2, inter2, &L->A21->p, &one, &U[n1 + ldu * p1], &ldu);
+
+		if (p1 != 0) ApplyToA12Ver2(n2, p1, &U[n1 + ldu * 0], ldu, L->right, smallsize, eps, method);
+		ApplyToA12Ver2(n2, p2, &U[n1 + ldu * p1], ldu, L->right, smallsize, eps, method);
+
+		free_arr(inter1);
+		free_arr(inter2);
+	}
+}
+#endif
 
 void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method)
 {
@@ -700,13 +792,13 @@ void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, ch
 		UnsymmLUfact(n1, Astr->left, &ipiv[0], smallsize, eps, method);
 
 		// Apply to A21: = U1 * V1T * (UP ^ {-1}) or to solve triangular system X * UP = VT
-		ApplyToA21(n1, Astr->left, Astr->A21, Astr->left, smallsize, eps, method);
+		ApplyToA21Ver2(Astr->A21->p, n1, Astr->A21->VT, Astr->A21->p, Astr->left, smallsize, eps, method);
 
 		// Swap row in A12
 		zlaswp(&Astr->A12->p, Astr->A12->U, &n1, &ione, &n1, ipiv, &ione);
 
 		// Apply to A12: =  (L ^ {-1}) (P ^ {-1}) * U2 * V2T or to solve triangular system  L * X  = (P ^ {-1}) * U
-		ApplyToA12(n1, Astr->left, Astr->A12, Astr->left, ipiv, smallsize, eps, method);
+		ApplyToA12Ver2(n1, Astr->A12->p, Astr->A12->U, n1, Astr->left, smallsize, eps, method);
 
 		// Double update D:= D - U1 * V1T * (U^{-1}) * (L^{-1}) * U2 * V2T		
 		// Update compressed block A[2][2]
@@ -734,6 +826,73 @@ void UnsymmLUfact(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, ch
 		for (int i = n1; i < n; i++)
 			ipiv[i] += n1;
 	}
+}
+
+void SymLUfactLowRankStruct(int n, cumnode* Astr, int *ipiv, int smallsize, double eps, char* method)
+{
+#if 1
+	int ione = 1;
+	int mione = -1;
+	dtype alpha = 1.0;
+	dtype alpha_mone = -1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		int info = 0;
+		zgetrf(&n, &n, Astr->A21->A, &n, ipiv, &info);
+#ifdef PRINT
+		for (int i = 0; i < n; i++)
+			if (ipiv[i] != i + 1) printf("HSS LU for n = %d: ROW interchange: %d with %d\n", n, i + 1, ipiv[i]);
+#endif
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+
+		// LU for A11
+		SymLUfactLowRankStruct(n1, Astr->left, &ipiv[0], smallsize, eps, method);
+
+		// Apply to A21: = U1 * V1T * (UP ^ {-1}) or to solve triangular system X * UP = VT
+		ApplyToA21Ver2(Astr->A21->p, n1, Astr->A21->VT, Astr->A21->p, Astr->left, smallsize, eps, method);
+
+		// Swap row in A12
+		zlaswp(&Astr->A12->p, Astr->A12->U, &n1, &ione, &n1, ipiv, &ione);
+
+		// Apply to A12: =  (L ^ {-1}) (P ^ {-1}) * U2 * V2T or to solve triangular system  L * X  = (P ^ {-1}) * U
+		ApplyToA12Ver2(n1, Astr->A12->p, Astr->A12->U, n1, Astr->left, smallsize, eps, method);
+
+		// Double update D:= D - U1 * V1T * (U^{-1}) * (L^{-1}) * U2 * V2T		
+		// Update compressed block A[2][2]
+		dtype *Y = alloc_arr<dtype>(Astr->A21->p * Astr->A12->p); int ldy = Astr->A21->p;
+		zgemm("no", "no", &Astr->A21->p, &Astr->A12->p, &n1, &alpha, Astr->A21->VT, &Astr->A21->p, Astr->A12->U, &n1, &beta, Y, &ldy);
+
+		cumnode* Bstr;
+#if 0
+		// (n2 x n2) = (n2 x n2) - (n2 x p2) * (p2 x p1) * (p1 x n2)
+		UnsymmCompUpdate3Struct(n2, Astr->A21->p, Astr->A12->p, Astr->right, alpha_mone, Y, ldy, Astr->A21->U, n2, Astr->A12->VT, Astr->A12->p, Bstr, smallsize, eps, method);
+#else
+		SymCompUpdate4LowRankStruct(n2, Astr->A21->p, Astr->A12->p, Astr->right, alpha_mone, Y, ldy, Astr->A21->U, n2, Astr->A12->VT, Astr->A12->p, Bstr, smallsize, eps, method);
+#endif
+		FreeUnsymmNodes(n2, Astr->right, smallsize);
+		CopyUnsymmStruct(n2, Bstr, Astr->right, smallsize);
+		FreeUnsymmNodes(n2, Bstr, smallsize);
+
+		free_arr(Y);
+
+		// LU for A22
+		SymLUfactLowRankStruct(n2, Astr->right, &ipiv[n1], smallsize, eps, method);
+
+		// Swap rows in A21
+		zlaswp(&Astr->A21->p, Astr->A21->U, &n2, &ione, &n2, &ipiv[n1], &ione);
+
+		// Adjust pivot indexes to level up
+#pragma omp parallel for simd schedule(simd:static)
+		for (int i = n1; i < n; i++)
+			ipiv[i] += n1;
+	}
+#endif
 }
 #endif
 
@@ -790,6 +949,64 @@ void RecMultLStruct(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int
 		free_arr(inter1);
 		free_arr(inter2);
 
+	}
+}
+
+//
+void RecMultLStructWork(int n, int m, cmnode* Astr, dtype *X, int ldx, dtype *Y, int ldy, dtype *work1, int lwork1, dtype *work2, int lwork2, int smallsize)
+{
+	dtype alpha = 1.0;
+	dtype beta = 0.0;
+
+	if (n <= smallsize)
+	{
+		zgemm("No", "No", &n, &m, &n, &alpha, Astr->A, &n, X, &ldx, &beta, Y, &ldy);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // rounding up
+		int n1 = n - n2;
+		int full_memory = 2 * m * n;
+		dtype *Y12 = work2;
+		dtype *Y21 = &work2[n1 * m];
+		dtype *Y11 = &work2[n2 * m + n1 * m];
+		dtype *Y22 = &work2[n1 * m + n2 * m + n1 * m];
+
+		dtype *inter1 = work1; // column major - lda = column
+		dtype *inter2 = &work1[n1 * n2];
+
+		int ldy12 = n1;
+		int ldy21 = n2;
+		int ldy11 = n1;
+		int ldy22 = n2;
+
+		int cur_lwork = lwork2 - full_memory;
+		int cur_lwork2 = cur_lwork / 2;
+
+		// A21 = A21 * A12 (the result of multiplication is A21 matrix with size n2 x n1)
+		zgemm("No", "No", &n2, &n1, &Astr->p, &alpha, Astr->U, &n2, Astr->VT, &Astr->p, &beta, inter1, &n2);
+
+		// Y21 = inter1 (n2 x n1) * X(1...n1, :) (n1 x n)
+		zgemm("No", "No", &n2, &m, &n1, &alpha, inter1, &n2, &X[0 + 0 * ldx], &ldx, &beta, Y21, &ldy21);
+
+		// A12 = A21*T = A12*T * A21*T (the result of multiplication is A21 matrix with size n1 x n2)
+		zgemm("Trans", "Trans", &n1, &n2, &Astr->p, &alpha, Astr->VT, &Astr->p, Astr->U, &n2, &beta, inter2, &n1);
+
+		// Y12 = inter2 (n1 x n2) * X(n1...m, :) (n2 x n)
+		zgemm("No", "No", &n1, &m, &n2, &alpha, inter2, &n1, &X[n1 + 0 * ldx], &ldx, &beta, Y12, &ldy12); // we have already transposed this matrix in previous dgemm
+
+		RecMultLStructWork(n1, m, Astr->left, &X[0 + ldx * 0], ldx, Y11, ldy11, work1, lwork1, &work2[full_memory], cur_lwork2, smallsize);
+		RecMultLStructWork(n2, m, Astr->right, &X[n1 + ldx * 0], ldx, Y22, ldy22, work1, lwork1, &work2[full_memory + cur_lwork2], cur_lwork2, smallsize);
+
+		// first part of Y = Y11 + Y12
+		mkl_zomatadd('C', 'N', 'N', n1, m, 1.0, Y11, ldy11, 1.0, Y12, ldy12, &Y[0 + ldy * 0], ldy);
+		// op_mat(n1, m, Y11, Y12, n1, '+');
+		// dlacpy("All", &n1, &m, Y11, &n1, &Y[0 + ldy * 0], &ldy);
+
+		// second part of Y = Y21 + Y22
+		mkl_zomatadd('C', 'N', 'N', n2, m, 1.0, Y21, ldy21, 1.0, Y22, ldy22, &Y[n1 + ldy * 0], ldy);
+		// op_mat(n2, m, Y21, Y22, n2, '+');
+		// dlacpy("All", &n2, &m, Y21, &n2, &Y[n1 + ldy * 0], &ldy);
 	}
 }
 
@@ -1677,10 +1894,10 @@ void UnsymmUpdate3Subroutine(int n2, int n1, int k1, int k2, cmnode* Astr, dtype
 	cmnode* Y21str = (cmnode*)malloc(sizeof(cmnode));
 	cmnode* Y12str = (cmnode*)malloc(sizeof(cmnode));
 
-	// [U21,V21] = LowRankApprox (Y21, eps, method);
+	// [U21, V21] = LowRankApprox (Y21, eps, method);
 	LowRankApproxStruct(n2, nk2, Y21, ldy21, Y21str, eps, "SVD");
 
-	// [U12, V12] = LowRankApprox(Y12, eps, method);
+	// [U12, V12] = LowRankApprox (Y12, eps, method);
 	LowRankApproxStruct(n1, nk2, Y12, ldy12, Y12str, eps, "SVD");
 
 	zlacpy("All", &n2, &Y21str->p, Y21str->U, &n2, Y21, &ldy21);
@@ -1722,6 +1939,36 @@ void UnsymmUpdate3Subroutine(int n2, int n1, int k1, int k2, cmnode* Astr, dtype
 	free_arr(Y12str);
 }
 #endif
+
+// U_21 * VT_21 + V1 * Y * V2 = U_21 * (E + Y) * V2
+void SymUpdate4Subroutine(int n2, int n1, dtype alpha, cmnode* Astr, const dtype *Y, int ldy, cmnode* &Bstr, int smallsize, double eps, char* method)
+{
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+
+	// Ranks
+	int p = Astr->p;
+	Bstr->p = p;
+
+	dtype *EY = alloc_arr<dtype>(p * p);
+	zlacpy("All", &p, &p, Y, &ldy, EY, &ldy);
+
+	MultVectorConst(p * p, EY, alpha, EY);
+
+	// Y = E + Y
+	for (int i = 0; i < p; i++)
+		EY[i + ldy * i] += 1.0;
+
+	// B{2,1} = U21*(V21'*V12);
+	Bstr->U = alloc_arr2<dtype>(n2 * p);
+	zgemm("No", "No", &n2, &p, &p, &alpha_one, Astr->U, &n2, EY, &ldy, &beta_zero, Bstr->U, &n2);
+
+	Bstr->VT = alloc_arr2<dtype>(p * n1);
+	zlacpy("All", &p, &n1, Astr->VT, &p, Bstr->VT, &p);
+
+	free_arr(EY);
+}
+
 #if 0
 /* B: = A - V1 * Xunsymm * V2 
 (n x k1) * (k1 x k2) * (k2 x n) */
@@ -1837,6 +2084,78 @@ void UnsymmCompUpdate3Struct(int n, int k1, int k2, cumnode* Astr, dtype alpha, 
 	}
 }
 #endif
+
+void SymCompUpdate4LowRankStruct(int n, int k1, int k2, cumnode* Astr, dtype alpha, dtype *Y, int ldy, dtype *V1, int ldv1, dtype *V2, int ldv2, cumnode* &Bstr, int smallsize, double eps, char* method)
+{
+	dtype alpha_one = 1.0;
+	dtype beta_zero = 0.0;
+	dtype beta_one = 1.0;
+
+	if (abs(alpha) < 10e-8)
+	{
+		CopyUnsymmStruct(n, Astr, Bstr, smallsize);
+		return;
+	}
+
+	Bstr = (cumnode*)malloc(sizeof(cumnode));
+
+	if (n <= smallsize)
+	{
+		// X = X + alpha * V * Y * VT
+
+		// C = V * Y
+		dtype *C = alloc_arr2<dtype>(n * k2); int ldc = n;
+		zgemm("No", "No", &n, &k2, &k1, &alpha_one, V1, &ldv1, Y, &ldy, &beta_zero, C, &ldc);
+
+		// Copy Astr->A to A_init (we do not change A)
+		dtype *A_init = alloc_arr2<dtype>(n * n); int lda = n;
+		zlacpy("All", &n, &n, Astr->A21->A, &lda, A_init, &lda);
+
+		// X = X + alpha * C * V
+		zgemm("No", "No", &n, &n, &k2, &alpha, C, &ldc, V2, &ldv2, &beta_one, A_init, &lda);
+
+		// B = A
+		alloc_dense_unsymm_node(n, Bstr);
+		zlacpy("All", &n, &n, A_init, &lda, Bstr->A21->A, &lda);
+
+		free_arr(C);
+		free_arr(A_init);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0); // n2 > n1
+		int n1 = n - n2;
+
+		Bstr->A21 = (cmnode*)malloc(sizeof(cmnode));
+		Bstr->A12 = (cmnode*)malloc(sizeof(cmnode));
+
+//#define TEST
+
+#ifdef TEST
+		//	UnsymmUpdate3Subroutine(n2, n1, k1, k2, Astr->A21, alpha, Y, ldy, &V1[n1 + ldv1 * 0], ldv1, &V2[0 + ldv2 * 0], ldv2, Bstr->A21, smallsize, eps, method);
+		//  UnsymmUpdate3Subroutine(n1, n2, k1, k2, Astr->A12, alpha, Y, ldy, &V1[0 + ldv1 * 0], ldv1, &V2[0 + ldv2 * n1], ldv2, Bstr->A12, smallsize, eps, method);
+
+	//	V1[n1 + ldv1 * 0],  V2[0 + ldv2 * 0]
+	//	V1[0 + ldv1 * 0],   V2[0 + ldv2 * n1]
+
+		RelError(zlange, n2, k1, Astr->A21->U, n2, &V1[n1 + ldv1 * 0], ldv1, eps);
+		RelError(zlange, k1, n1, Astr->A21->VT, k1, &V2[0 + ldv2 * 0], ldv2, eps);
+
+		RelError(zlange, n1, k1, Astr->A12->U, n1, &V1[0 + ldv1 * 0], ldv1, eps);
+		RelError(zlange, k1, n2, Astr->A12->VT, k1, &V2[0 + ldv2 * n1], ldv2, eps);
+		system("pause");
+#endif
+
+		SymUpdate4Subroutine(n2, n1, alpha, Astr->A21, Y, ldy, Bstr->A21, smallsize, eps, method);
+		SymUpdate4Subroutine(n1, n2, alpha, Astr->A12, Y, ldy, Bstr->A12, smallsize, eps, method);
+
+		// B{1,1} = SymCompUpdate2 (A{1,1}, Y, V(1:n1,:), alpha, eps, method);
+		SymCompUpdate4LowRankStruct(n1, k1, k2, Astr->left, alpha, Y, ldy, &V1[0 + ldv1 * 0], ldv1, &V2[0 + ldv2 * 0], ldv2, Bstr->left, smallsize, eps, method);
+
+		// B{2,2} = SymCompUpdate2 (A{2,2}, Y, V(m:n ,:), alpha, eps, method);
+		SymCompUpdate4LowRankStruct(n2, k1, k2, Astr->right, alpha, Y, ldy, &V1[n1 + ldv1 * 0], ldv1, &V2[0 + ldv2 * n1], ldv2, Bstr->right, smallsize, eps, method);
+	}
+}
 
 void SymCompRecInvStruct(int n, cmnode* Astr, cmnode* &Bstr, int smallsize, double eps, char *method)
 {
@@ -2041,7 +2360,7 @@ void UnsymmCompRecInvStruct(int n, cumnode* Astr, cumnode* &Bstr, int smallsize,
 }
 #endif
 
-void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method)
+void UnsymmCompRecInvLowerTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int smallsize, double eps, char *method)
 {
 	dtype alpha_one = 1.0;
 	dtype alpha_mone = -1.0;
@@ -2074,10 +2393,10 @@ void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int 
 		Bstr->A21->VT = alloc_arr2<dtype>(p2 * n1);
 
 		// Inversion of L11 to B11
-		UnsymmCompRecInvLeftTriangStruct(n1, Lstr->left, Bstr->left, smallsize, eps, method);
+		UnsymmCompRecInvLowerTriangStruct(n1, Lstr->left, Bstr->left, smallsize, eps, method);
 
 		// Inversion of L22 to B22
-		UnsymmCompRecInvLeftTriangStruct(n2, Lstr->right, Bstr->right, smallsize, eps, method);
+		UnsymmCompRecInvLowerTriangStruct(n2, Lstr->right, Bstr->right, smallsize, eps, method);
 
 		// Fill B{2,1} U as L22 * A{2,1} U
 		UnsymmRecMultLowerLStruct(n2, p2, Bstr->right, Lstr->A21->U, n2, Bstr->A21->U, n2, smallsize);
@@ -2090,7 +2409,7 @@ void UnsymmCompRecInvLeftTriangStruct(int n, cumnode* Lstr, cumnode* &Bstr, int 
 	}
 }
 
-void UnsymmCompRecInvRightTriangStruct(int n, cumnode* Rstr, cumnode* &Bstr, int smallsize, double eps, char *method)
+void UnsymmCompRecInvUpperTriangStruct(int n, cumnode* Rstr, cumnode* &Bstr, int smallsize, double eps, char *method)
 {
 	dtype alpha_one = 1.0;
 	dtype alpha_mone = -1.0;
@@ -2123,10 +2442,10 @@ void UnsymmCompRecInvRightTriangStruct(int n, cumnode* Rstr, cumnode* &Bstr, int
 		Bstr->A12->VT = alloc_arr2<dtype>(p1 * n2);
 
 		// Inversion of R11 to B11
-		UnsymmCompRecInvRightTriangStruct(n1, Rstr->left, Bstr->left, smallsize, eps, method);
+		UnsymmCompRecInvUpperTriangStruct(n1, Rstr->left, Bstr->left, smallsize, eps, method);
 
 		// Inversion of R22 to B22
-		UnsymmCompRecInvRightTriangStruct(n2, Rstr->right, Bstr->right, smallsize, eps, method);
+		UnsymmCompRecInvUpperTriangStruct(n2, Rstr->right, Bstr->right, smallsize, eps, method);
 
 		// Fill B{1,2} U as U11 * A{1,2} U
 		UnsymmRecMultUpperLStruct(n1, p1, Bstr->left, Rstr->A12->U, n1, Bstr->A12->U, n1, smallsize);
@@ -2192,6 +2511,46 @@ void UnsymmResRestoreStruct(int n, cumnode* H1str, dtype *H2 /*recovered*/, int 
 	}
 }
 
+void LowRankToUnsymmHSS(int n, int r, dtype *U, int ldu, dtype *VT, int ldvt, cumnode *&Aout, int smallsize)
+{
+	Aout = (cumnode*)malloc(sizeof(cumnode));
+	dtype done = 1.0;
+	dtype zero = 0.0;
+
+	if (n <= smallsize)
+	{
+		alloc_dense_unsymm_node(n, Aout);
+		Aout->A12->A = (dtype*)malloc(n * n * sizeof(dtype));
+		zgemm("no", "no", &n, &n, &r, &done, U, &ldu, VT, &ldvt, &zero, Aout->A21->A, &n);
+	}
+	else
+	{
+		int n2 = (int)ceil(n / 2.0);
+		int n1 = n - n2;
+
+		Aout->A12 = (cmnode*)malloc(sizeof(cmnode));
+		Aout->A21 = (cmnode*)malloc(sizeof(cmnode));
+
+		Aout->A21->U = (dtype*)malloc(n2 * r * sizeof(dtype));
+		Aout->A21->VT = (dtype*)malloc(r * n1 * sizeof(dtype));
+
+		Aout->A12->U = (dtype*)malloc(n1 * r * sizeof(dtype));
+		Aout->A12->VT = (dtype*)malloc(r * n2 * sizeof(dtype));
+
+		zlacpy("all", &n2, &r, &U[n1 + ldu * 0], &ldu, Aout->A21->U, &n2);
+		zlacpy("all", &n1, &r, &U[0 + ldu * 0], &ldu, Aout->A12->U, &n1);
+	
+		zlacpy("all", &r, &n1, &VT[0 + ldvt * 0], &ldvt, Aout->A21->VT, &r);
+		zlacpy("all", &r, &n2, &VT[0 + ldvt * n1], &ldvt, Aout->A12->VT, &r);
+
+		Aout->A21->p = r;
+		Aout->A12->p = r;
+
+		LowRankToUnsymmHSS(n1, r, U, ldu, VT, ldvt, Aout->left, smallsize);
+		LowRankToUnsymmHSS(n2, r, &U[n1 + ldu * 0], ldu, &VT[0 + ldvt * n1], ldvt, Aout->right, smallsize);
+	}
+}
+
 
 // Solver
 
@@ -2227,9 +2586,19 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 
 	printf("Solving of the system...\n");
 	tt = omp_get_wtime();
-
+#if 0
 	DirSolveFastDiagStruct(x.n, y.n, Gstr, B, f, x_sol, thresh, smallsize);
-
+#else
+	int size2D = x.n * y.n;
+	int lwork1 = size2D + x.n;
+	int levels = ceil(log2(ceil((double)x.n / smallsize))) + 1;
+	int lwork2 = x.n * x.n / 2;
+	int lwork3 = 2 * x.n * 1 * levels;
+	int lwork = lwork1 + lwork2 + lwork3;
+	dtype *work = alloc_arr<dtype>(lwork);
+	DirSolveFastDiagStructWork(x.n, y.n, Gstr, B, f, x_sol, work, lwork, thresh, smallsize);
+	free(work); 
+#endif
 	tt = omp_get_wtime() - tt;
 	if (compare_str(7, bench, "print_time"))
 	{
@@ -2243,7 +2612,8 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 	ResidCSR(x.n, y.n, Dcsr, x_sol, f, g, RelRes);
 
 	printf("RelRes = %10.8lf\n", RelRes);
-	if (RelRes < thresh)
+	//if (RelRes < thresh)
+	if (1)
 	{
 		success = 1;
 		itcount = 0;
@@ -2256,6 +2626,7 @@ void Block3DSPDSolveFastStruct(size_m x, size_m y, dtype *D, int ldd, dtype *B, 
 			itcount = 0;
 			while ((RelRes > thresh) && (itcount < ItRef))
 			{
+				system("pause");
 				tt = omp_get_wtime();
 
 				DirSolveFastDiagStruct(x.n, y.n, Gstr, B, g, x1, thresh, smallsize);
@@ -2387,6 +2758,7 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	int n = n1;
 	int nbr = n2;
 	int size = n * nbr;
+
 	dtype *tb = alloc_arr2<dtype>(size);
 	dtype *y = alloc_arr2<dtype>(n);
 
@@ -2421,9 +2793,50 @@ void DirSolveFastDiagStruct(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, d
 	free_arr(y);
 }
 
+void DirSolveFastDiagStructWork(int n1, int n2, cmnode* *Gstr, dtype *B, dtype *f, dtype *x, dtype *work, int lwork, double eps, int smallsize)
+{
+	int n = n1;
+	int nbr = n2;
+	int size2D = n * nbr;
+	int ione = 1;
+	dtype fone = { 1.0, 0.0 };
+	dtype mone = { -1.0, 0.0 };
+
+	// lwork = size + n
+	dtype *tb = work;
+	dtype *y = &work[size2D];
+
+	zcopy(&n, f, &ione, tb, &ione);
+
+	int levels = ceil(log2(ceil((double)n / smallsize))) + 1;
+	int lwork1 = n * n / 2;
+	int lwork2 = 2 * n * 1 * levels;
+	double time1 = 0, time2 = 0;
+
+	for (int k = 1; k < nbr; k++)
+	{
+		RecMultLStructWork(n, 1, Gstr[k - 1], &tb[ind(k - 1, n)], size2D, y, n, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+		DenseDiagMult(n, &B[ind(k - 1, n)], y, y);
+
+#pragma omp parallel for simd
+		for (int i = 0; i < n; i++)
+			tb[ind(k, n) + i] = f[ind(k, n) + i] - y[i];
+	}
+
+	RecMultLStructWork(n, 1, Gstr[nbr - 1], &tb[ind(nbr - 1, n)], size2D, &x[ind(nbr - 1, n)], size2D, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+
+	for (int k = nbr - 2; k >= 0; k--)
+	{
+		DenseDiagMult(n, &B[ind(k, n)], &x[ind(k + 1, n)], y);
+		zaxpby(&n, &fone, &tb[ind(k, n)], &ione, &mone, y, &ione);
+
+		RecMultLStructWork(n, 1, Gstr[k], y, n, &x[ind(k, n)], size2D, &work[size2D + n], lwork1, &work[size2D + n + lwork1], lwork2, smallsize);
+	}
+}
+
 void alloc_dense_node(int n, cmnode* &Cstr)
 {
-	Cstr->A = alloc_arr<dtype>(n * n);
+	Cstr->A = alloc_arr2<dtype>(n * n);
 	Cstr->n1 = n;
 	Cstr->p = -1;
 	Cstr->n2 = n;

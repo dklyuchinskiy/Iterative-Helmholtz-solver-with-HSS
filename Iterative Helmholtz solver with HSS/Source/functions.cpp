@@ -14,11 +14,6 @@ using namespace std;
 
 // Test for the whole solver
 
-int ind(int j, int n)
-{
-	return n * j;
-}
-
 int compare_str(int n, char *s1, char *s2)
 {
 	for (int i = 0; i < n; i++)
@@ -91,11 +86,11 @@ void Diag(int n, dtype *H, int ldh, double value)
 void DiagVec(int n, dtype *H, int ldh, dtype *value)
 { 
 	int i = 0, j = 0;
-#pragma omp parallel private(i,j)
+//#pragma omp parallel private(i,j)
 	{
-#pragma omp for schedule(runtime)
+//#pragma omp for schedule(runtime)
 	for (j = 0; j < n; j++)
-#pragma omp simd
+//#pragma omp simd
 		for (i = 0; i < n; i++)
 		{
 			if (i == j) H[i + ldh * j] = value[j];
@@ -211,15 +206,72 @@ void Hilbert6(int m, int n, dtype *H, int ldh)
 			}
 }
 
+void Hilbert7LowRank(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < int(m / 2); i++)
+			if (i < j)
+			{
+				H[i + ldh * j] = 1.0 / (i + j + 1) + 1;
+			}
+			else if (i > j)
+			{
+				H[i + ldh * j] = 1.0 / (0.5 * i + j + 1) + 1;
+			}
+			else
+			{
+				H[i + ldh * j] = 3.0 / (i + 0.5 * j + 2) + 1.5;
+			}
+}
+
+void Hilbert8Unique(int m, int n, dtype *H, int ldh)
+{
+	Clear(m, n, H, ldh);
+
+	for (int j = 0; j < n; j++)
+		for (int i = 0; i < m; i++)
+				H[i + ldh * j] = 1.0;
+}
+
 
 /* (m x n) matrix -> to (n x m) matrix */
 void Mat_Trans(int m, int n, dtype *H, int ldh, dtype *Hcomp_tr, int ldhtr)
 {
-#pragma omp parallel for schedule(runtime)
 	for (int i = 0; i < m; i++)
-#pragma omp simd
 		for (int j = 0; j < n; j++)
 			Hcomp_tr[j + ldhtr * i] = H[i + ldh * j];
+}
+
+void MakeFullDenseSymMatrix(char part, int n, dtype *A, int lda)
+{
+	if (part == 'L')
+	{
+		for (int j = 0; j < n; j++)
+			for (int i = j; i < n; i++)
+				A[j + lda * i] = A[i + lda * j];
+	}
+	else if (part == 'U')
+	{
+		for (int i = 0; i < n; i++)
+			for (int j = i; j < n; j++)
+				A[j + lda * i] = A[i + lda * j];
+	}
+	else
+	{
+	}
+}
+
+void PrintMat(int m, int n, dtype *A, int lda)
+{
+	for (int i = 0; i < m; i++)
+	{
+		for (int j = 0; j < n; j++)
+			printf("%lf ", A[i + lda * j].real());
+		printf("\n");
+	}
+
 }
 
 void Add_dense(int m, int n, dtype alpha, dtype *A, int lda, dtype beta, dtype *B, int ldb, dtype *C, int ldc)
@@ -664,23 +716,23 @@ void construct_block_row(int m, int n, dtype* BL, int ldbl, dtype *A, int lda, d
 // v[i] = D[i] * v[i]
 void DenseDiagMult(int n, dtype *diag, dtype *v, dtype *f)
 {
-#pragma omp parallel for simd schedule(runtime)
+#pragma omp for simd
 	for (int i = 0; i < n; i++)
 		f[i] = diag[i] * v[i];
 }
 
 double F_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-//	return -8.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y);
+	return -8.0 * PI * PI * sin(2 * PI * x) * sin(2 * PI * y);
 //	return 0;
-	return 2.0 *  (x * (x - xx.l) + y * (y - yy.l));
+//	return 2.0 *  (x * (x - xx.l) + y * (y - yy.l));
 }
 
 double u_ex_2D(size_m xx, size_m yy, double x, double y)
 {
-//	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y);
+	return 2.0 + sin(2 * PI * x) * sin(2 * PI * y);
 //	return x * x - y * y;
-	return x * y * (x - xx.l) * (y - yy.l);
+//	return x * y * (x - xx.l) * (y - yy.l);
 }
 
 double F_ex(double x, double y, double z)
@@ -810,7 +862,6 @@ void MyLURec(int n, dtype *Hinit, int ldh, int *ipiv, int smallsize)
 			ipiv[i] = ipiv[i] + n1;
 	}
 }
-
 
 #if 0
 
